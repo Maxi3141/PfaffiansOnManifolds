@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from helpers import StatBasics
+from helpers import WaveFunction
 
 #If not stated stated otherwise, "electronLocations" always has dimensions [NUMBER_OF_BATCHES, NUMBER_OF_ELECTRONS, 3]
 
@@ -33,8 +34,20 @@ def computeLocalEnergy(waveFunction: torch.nn.Module, electronLocations: torch.T
     curvatureTerm = getSphereCurvatureTerm(electronLocations.shape[0], electronLocations.shape[1], sphereRadius)
     return -1. / (2. * particleMass) * torch.sum(surfaceLaplacians, dim=1) + 0.5 * torch.sum(electrostaicForces, dim=1) + 0.5 * torch.sum(curvatureTerm, dim=1)
 
-def getExpectedValueFromWaveFunction():
-    pass
+def estimateExpectedLocalEnergy(waveFunction: WaveFunction.MultiElectronWaveFunction, numSamples: int = 16):
+    electronLocations = torch.stack([StatBasics.sampleFromWaveFunction(waveFunction, waveFunction.numElectrons, waveFunction.sphereRadius) for _ in range(numSamples)])
+    return torch.sum(computeLocalEnergy(waveFunction, electronLocations, waveFunction.sphereRadius, waveFunction.particleMass)).item() / numSamples
+
+def estimateVMCGradient(waveFunction: WaveFunction.MultiElectronWaveFunction, numSamples: int = 16):
+    expectedLocalEnergy = estimateExpectedLocalEnergy(waveFunction)
+    electronLocations = torch.stack([StatBasics.sampleFromWaveFunction(waveFunction, waveFunction.numElectrons, waveFunction.sphereRadius) for _ in range(numSamples)])
+    measuredLocalEnergy = computeLocalEnergy(waveFunction, electronLocations, waveFunction.sphereRadius, waveFunction.particleMass)
+    localEnergyDiff = measuredLocalEnergy - expectedLocalEnergy
+    networkLogGradients = waveFunction.getLogGradient(electronLocations)
+    print("localEnergyDiff.shape =", localEnergyDiff.shape)         #DEBUG
+    print("networkLogGradients.shape =", networkLogGradients.shape) #DEBUG
+    vmcGradient = torch.sum(localEnergyDiff * networkLogGradients, dim=0)
+    return vmcGradient
 
 def computeLocalEnergyGradient():
     pass
