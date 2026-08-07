@@ -2,8 +2,8 @@ import unittest
 import numpy as np
 import torch
 
-from helpers import LinAlgBasics as laBasics
-from helpers import Physics as phys
+from computation import LinAlgBasics as laBasics
+from computation import Physics as phys
 
 
 class TestLinAlg(unittest.TestCase):

@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 from matplotlib import cm, colors
 from mpl_toolkits.mplot3d import Axes3D
-from helpers import StatBasics as stats
+from computation import StatBasics as stats
 import numpy as np
 
 n_points = 200

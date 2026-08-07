@@ -1,7 +1,7 @@
 import numpy as np
 import torch
-from helpers import StatBasics
-from helpers import WaveFunction
+from computation import StatBasics
+from nn import WaveFunction
 
 #If not stated stated otherwise, "electronLocations" always has dimensions [NUMBER_OF_BATCHES, NUMBER_OF_ELECTRONS, 3]
 
@@ -23,7 +23,7 @@ def getElectronPairForces(electronLocations: torch.Tensor):
 #TODO: Add tests for this.
 
 def getSphereCurvatureTerm(numBatches: int, numElectrons: int, sphereRadius: float):
-    #For the sphere: Mean curvature is M = 1/r and Gauss curvature K = 1/r^2. So (M^2-K) = 0.
+    #For the sphere: Mean curvature is M = 1/r and Gauss curvature is K = 1/r^2. So (M^2-K) = 0.
     #Keep this function only for future purposes when more general geometries will hopefully be available.
     return torch.zeros([numBatches, numElectrons])
 
@@ -44,13 +44,10 @@ def estimateVMCGradient(waveFunction: WaveFunction.MultiElectronWaveFunction, nu
     measuredLocalEnergy = computeLocalEnergy(waveFunction, electronLocations, waveFunction.sphereRadius, waveFunction.particleMass)
     localEnergyDiff = measuredLocalEnergy - expectedLocalEnergy
     networkLogGradients = waveFunction.getLogGradient(electronLocations)
-    print("localEnergyDiff.shape =", localEnergyDiff.shape)         #DEBUG
-    print("networkLogGradients.shape =", networkLogGradients.shape) #DEBUG
+    print("localEnergyDiff.shape =", localEnergyDiff.shape)         #DEBUG. TODO: Remove
+    print("networkLogGradients.shape =", networkLogGradients.shape) #DEBUG. TODO: Remove
     vmcGradient = torch.sum(localEnergyDiff * networkLogGradients, dim=0)
     return vmcGradient
-
-def computeLocalEnergyGradient():
-    pass
 
 def estimateVariationalEnergy(waveFunction, numElectrons, sphereRadius):
     batchSize = 16
