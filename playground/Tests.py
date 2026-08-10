@@ -8,10 +8,13 @@ from computation import Physics as phys
 
 class TestLinAlg(unittest.TestCase):
     def testPfaffian(self):
-        testMatrixA = np.array([[0,2,3,4,5,6],[-2,0,1,0,1,0],[-3,-1,0,2,2,2],[-4,0,-2,0,0,1],[-5,-1,-2,0,0,-4],[-6,0,-2,-1,4,0]])
+        testMatrixANumpy = np.array([[0,2,3,4,5,6],[-2,0,1,0,1,0],[-3,-1,0,2,2,2],[-4,0,-2,0,0,1],[-5,-1,-2,0,0,-4],[-6,0,-2,-1,4,0]])
+        testMatrixATorch = torch.tensor([[0,2,3,4,5,6],[-2,0,1,0,1,0],[-3,-1,0,2,2,2],[-4,0,-2,0,0,1],[-5,-1,-2,0,0,-4],[-6,0,-2,-1,4,0]], dtype=torch.float)
         exactPfaffianA = -34
-        computedPfaffianA = laBasics.getPfaffian(testMatrixA)
-        self.assertAlmostEqual(exactPfaffianA, computedPfaffianA)
+        computedPfaffianANumpy = laBasics.getPfaffianNumpy(testMatrixANumpy)
+        self.assertAlmostEqual(exactPfaffianA, computedPfaffianANumpy)
+        computedPfaffianATorch = laBasics.getPfaffian(testMatrixATorch)
+        self.assertAlmostEqual(exactPfaffianA, computedPfaffianATorch.item(), places=5)
 
 class SurfaceLaplacianTestNeuralNetwork(torch.nn.Module):
     def __init__(self):

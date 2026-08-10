@@ -1,9 +1,9 @@
 import torch
 
 class ElectronEmbedding(torch.nn.Module):
-    def __init__(self):
+    def __init__(self, embeddingDim):
         self.numMLPLayers = 4
-        self.embeddingDim = 256
+        self.embeddingDim = embeddingDim
         self.filterHiddenDim = 16
 
         self.siluActivation = torch.nn.functional.silu
@@ -24,6 +24,7 @@ class ElectronEmbedding(torch.nn.Module):
     def forward(self, electronLocations: torch.Tensor, spinUpIndices: tuple[int, ...], spinDownIndices: tuple[int, ...]):
         #TODO?: Add check to ensure spinUpIndices and spinDownIndices really do partition (0,1,...,numElectrons) properly
         #... or compute spinDownIndices from spinUpIndices?
+        #Update: The first NUp electrons are spin up. The rest are spin down. TODO: Replace the tuples with just the cutoff index NUp.
         numBatches = electronLocations.shape[0]
         numElectrons = electronLocations.shape[1]
         
@@ -53,7 +54,7 @@ class ElectronEmbedding(torch.nn.Module):
         numBatches = electronLocations.shape[0]
         numElectrons = electronLocations.shape[1]
         expandedElectronLocations = electronLocations.unsqueeze(2).expand(numBatches, numElectrons, numElectrons, 3).clone()
-        distanceMatrix = expandedElectronLocations - torch.transpose(expandedElectronLocations, dim0=1, dim1=-1)
+        distanceMatrix = expandedElectronLocations - torch.transpose(expandedElectronLocations, dim0=1, dim1=2)
         return distanceMatrix
 
     def rescaledElectronDistances(self, electronLocations: torch.Tensor):
