@@ -14,7 +14,7 @@ force_coeff = 1
 
 #Generate initial positions
 for i in range(n_points):
-    point_positions.append(list(stats.sampleUniformOnSphere()))
+    point_positions.append(list(stats.sampleUniformOnSphereNumpy()))
 
 for timeIndex in range(num_timesteps):
 

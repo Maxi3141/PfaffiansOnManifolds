@@ -21,7 +21,7 @@ class SurfaceLaplacianTestNeuralNetwork(torch.nn.Module):
         super().__init__()
 
     def forward(self, x):
-        return torch.sum(torch.sin(x[:,0]) + torch.exp(x[:,1]) * x[:,2]**2)
+        return torch.sum(torch.sin(x[:,:,0]) + torch.exp(x[:,:,1]) * x[:,:,2]**2, dim=1, keepdim=True)
 
 class SurfaceGradientTest(unittest.TestCase):
     def testSurfaceGradient(self):
@@ -45,6 +45,31 @@ class SurfaceLaplacianTest(unittest.TestCase):
             evaluationPoints = r * torch.nn.functional.normalize(unnormedEvaluationPoints, p=2, dim=2)
             computedSurfaceLaplacians = phys.getSurfaceLaplacian(testWaveFunction, evaluationPoints, r)
             discrepany = computedSurfaceLaplacians - exactSurfaceLaplacians[rIndex]
+            self.assertAlmostEqual(torch.linalg.norm(discrepany).item(), 0.0, 5)
+
+#TODO: Adjust the log-version tests so that they use 2-electron-functions instead of the current 1-electron ones.
+class LogSurfaceGradientTest(unittest.TestCase):
+    def testLogSurfaceGradient(self):
+        testWaveFunction = SurfaceLaplacianTestNeuralNetwork()
+        unnormedEvaluationPoints = torch.tensor([[[1., 0., 0.]], [[1., 1., 0.]], [[1., 1., 1.]], [[0., -1., 0.]]])
+        testedRadii = [1., 2.]
+        exactSurfaceGradients = torch.tensor([[[[0., 0., 0.]], [[0.585130354848348, -0.585130354848348, 0.]], [[-0.285143742618018, -0.499382220912953, 0.784525963530971]], [[0., 0., 0.]]], [[[0., 0., 0.]], [[0.0789375731261391, -0.0789375731261392, 0]], [[-0.69642774782334, 0.0472546327939882, 0.649173115029352]], [[0., 0., 0.]]]])
+        for rIndex, r in enumerate(testedRadii):
+            evaluationPoints = r * torch.nn.functional.normalize(unnormedEvaluationPoints, p=2, dim=2)
+            computedSurfaceGradients = phys.getSurfaceGradient(testWaveFunction, evaluationPoints, True)
+            discrepany = computedSurfaceGradients - exactSurfaceGradients[rIndex]
+            self.assertAlmostEqual(torch.linalg.norm(discrepany).item(), 0.0, 5)
+
+class LogSurfaceLaplacianTest(unittest.TestCase):
+    def testLogSurfaceLaplacian(self):
+        testWaveFunction = SurfaceLaplacianTestNeuralNetwork()
+        unnormedEvaluationPoints = torch.tensor([[[1., 0., 0.]], [[1., 1., 0.]], [[1., 1., 1.]], [[0., -1., 0.]]])
+        testedRadii = [1., 2.]
+        exactLogSurfaceLaplacians = torch.tensor([[1.09260496670312, 3.40408760019398, -3.57209607027618, 0.0], [2.65715786572742, 7.70429379301717, -1.94852976057954, 0.0]])
+        for rIndex, r in enumerate(testedRadii):
+            evaluationPoints = r * torch.nn.functional.normalize(unnormedEvaluationPoints, p=2, dim=2)
+            computedLogSurfaceLaplacians = phys.getSurfaceLaplacian(testWaveFunction, evaluationPoints, r, True)
+            discrepany = computedLogSurfaceLaplacians - exactLogSurfaceLaplacians[rIndex]
             self.assertAlmostEqual(torch.linalg.norm(discrepany).item(), 0.0, 5)
 
 if __name__ == "__main__":

@@ -31,15 +31,15 @@ def getPfaffianNumpy(A: np.typing.ArrayLike):
     return result
 
 def getHouseholderTransform(v: torch.Tensor, n: int):
-    vNorm = torch.linalg.norm(v).item()
-    paddedV = torch.zeros(n) 
-    paddedV[n - v.shape[0]:] = v
-    target = torch.zeros(n)
-    target[n - v.shape[0]] = np.sign(v[0].item()) * vNorm
+    vNorm = torch.linalg.norm(v)
+    paddedV = torch.cat([torch.zeros(n - v.shape[0]), v])
+    target = torch.cat([torch.zeros(n - v.shape[0]), (torch.sign(v[0]) * vNorm).unsqueeze(0), torch.zeros(v.shape[0] - 1)])
+    #target = torch.zeros(n)
+    #target[n - v.shape[0]] = torch.sign(v[0]) * vNorm
     householderVector = paddedV - target
     householderNorm = torch.linalg.norm(householderVector)
     householderVector = (householderVector / householderNorm).unsqueeze(1)
-    return torch.eye(n) - 2 * torch.matmul(householderVector, torch.transpose(householderVector, dim0=0, dim1=1))
+    return torch.eye(n) - 2. * torch.matmul(householderVector, torch.transpose(householderVector, dim0=0, dim1=1))
 
 def tridiagonalizeSkewSymmetricMatrix(A: torch.Tensor):
     matSize = A.shape[0]
@@ -56,7 +56,5 @@ def getPfaffian(A: torch.Tensor):
     if matSize % 2 == 1:
         return torch.tensor([0.0])
     triDiag = tridiagonalizeSkewSymmetricMatrix(A)
-    result = torch.tensor([1.0])
-    for column_index in range(int(matSize/2)):
-        result[0] = result[0] * triDiag[2 * column_index, 2 * column_index + 1]
+    result = torch.prod(torch.diagonal(triDiag[:,1::2][::2,:]))
     return result
