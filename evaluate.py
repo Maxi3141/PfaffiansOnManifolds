@@ -16,7 +16,7 @@ def main():
 
     #Mode must be "eval" to evaluate the wave function at given points...
     #... or "sample" to sample numElectron points.
-    mode = "eval"
+    mode = "sample"
 
     #Only relevant when mode == "sample"
     batchSize = 10
@@ -42,7 +42,6 @@ def main():
         normedEvaluationPoints = sphereRadius * torch.nn.functional.normalize(unnormedEvaluationPoints, p=2., dim=-1)
 
     waveNetwork = WaveFunction.MultiElectronWaveFunction(numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim)
-    waveNetwork.to("cuda")
     print(f"Created wave function Pfaffians with {sum(p.numel() for p in waveNetwork.parameters())} parameters in total.")
     waveNetwork.load_state_dict(torch.load(f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up.pth"))
     print("Loaded weights from save file.")
@@ -52,7 +51,7 @@ def main():
         print("Evaluated wave function. Result:")
         print(result)
     if mode == "sample":
-        result = StatBasics.sampleBatchFromWaveFunction(batchSize, waveNetwork, numElectrons, sphereRadius, 16)
+        result = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius, 64)
         print(f"Sampled {numElectrons} electrons {batchSize} times. Result:")
         print(result)
 

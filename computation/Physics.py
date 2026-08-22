@@ -42,14 +42,20 @@ def computeLocalEnergy(waveFunction: torch.nn.Module, electronLocations: torch.T
 
     return -1. / (2. * particleMass) * torch.sum(laplaceTerm, dim=1) + 0.5 * torch.sum(electrostaticForces, dim=1) + 0.5 * torch.sum(curvatureTerm, dim=1)
 
-def estimateExpectedLocalEnergy(waveFunction: WaveFunction.MultiElectronWaveFunction, numSamples: int = 16):
-    #electronLocations = torch.stack([StatBasics.sampleFromWaveFunction(waveFunction, waveFunction.numElectrons, waveFunction.sphereRadius) for _ in range(numSamples)])
-    electronLocations = StatBasics.sampleBatchFromWaveFunction(numSamples, waveFunction, waveFunction.numElectrons, waveFunction.sphereRadius)
+def estimateExpectedLocalEnergy(waveFunction: WaveFunction.MultiElectronWaveFunction, numSamples: int = 16, presampledElectrons: torch.Tensor = None):
+    if presampledElectrons == None:
+        electronLocations = StatBasics.sampleFromWaveFunction(waveFunction, numSamples, waveFunction.numElectrons, waveFunction.sphereRadius)
+    else:
+        electronLocations = presampledElectrons
     return torch.sum(computeLocalEnergy(waveFunction, electronLocations, waveFunction.sphereRadius, waveFunction.particleMass)).item() / numSamples
 
-def estimateVMCGradient(waveFunction: WaveFunction.MultiElectronWaveFunction, batchSize: int = 16):
-    expectedLocalEnergy = estimateExpectedLocalEnergy(waveFunction, batchSize)
-    electronLocations = StatBasics.sampleBatchFromWaveFunction(batchSize, waveFunction, waveFunction.numElectrons, waveFunction.sphereRadius)
+def estimateVMCGradient(waveFunction: WaveFunction.MultiElectronWaveFunction, batchSize: int = 16, presampledElectrons: torch.Tensor = None):
+    if presampledElectrons == None:
+        expectedLocalEnergy = estimateExpectedLocalEnergy(waveFunction, batchSize)
+        electronLocations = StatBasics.sampleFromWaveFunction(waveFunction, batchSize, waveFunction.numElectrons, waveFunction.sphereRadius)
+    else:
+        expectedLocalEnergy = estimateExpectedLocalEnergy(waveFunction, batchSize, presampledElectrons)
+        electronLocations = presampledElectrons
     measuredLocalEnergy = computeLocalEnergy(waveFunction, electronLocations, waveFunction.sphereRadius, waveFunction.particleMass)
     localEnergyDiff = measuredLocalEnergy - expectedLocalEnergy
     networkLogGradients = waveFunction.getLogGradient(electronLocations)

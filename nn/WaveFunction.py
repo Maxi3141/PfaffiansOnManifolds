@@ -106,7 +106,10 @@ class SinglePfaffianNetwork(torch.nn.Module):
         
         orbitAOrbit = torch.matmul(torch.matmul(orbitElecPairing, A), torch.transpose(orbitElecPairing, dim0=1, dim1=2))
 
-        return torch.vmap(laBasics.getPfaffian)(orbitAOrbit)
+        pfOrbitAOrbit = torch.vmap(laBasics.getPfaffian)(orbitAOrbit)
+        #pfA           = torch.vmap(laBasics.getPfaffian)(A)
+
+        return pfOrbitAOrbit #/ pfA
 
     def forwardA(self, electronEmbeddings):
         numBatches = electronEmbeddings.shape[0]
@@ -115,6 +118,7 @@ class SinglePfaffianNetwork(torch.nn.Module):
         pairEmbeddings = torch.cat((expandedEmbeddings, torch.transpose(expandedEmbeddings, 1, 2)), dim=-1)
         #"pairEmbeddings" now has shape [NUMBER_OF_BATCHES, NUMBER_OF_ELECTRONS, NUMBER_OF_ELECTRONS, 2 * EMBEDDING_DIM].
         usablePairEmbeddings = torch.flatten(pairEmbeddings, start_dim=1, end_dim=2)
+        print("pairEmbeddings.shape =", pairEmbeddings.shape, ", usablePairEmbeddings.shape =", usablePairEmbeddings.shape)
         rawReadoutsList = []
         for layerIndex, layer in enumerate(self.readoutLayersA):
             rawReadoutsList.append(layer(usablePairEmbeddings[:,layerIndex,:]))

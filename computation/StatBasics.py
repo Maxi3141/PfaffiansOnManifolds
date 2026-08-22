@@ -9,17 +9,17 @@ def sampleUniformOnSphereNumpy(r = 1):
     z = r * np.cos(phi)
     return np.array([x, y, z])
 
-def sampleUniformOnSphere(r = 1.):
-    theta = 2. * torch.pi * torch.rand(1)
-    phi = torch.acos(2. * torch.rand(1) - 1.)
+def sampleUniformOnSphere(batchSize, numElectrons, r = 1.):
+    theta = 2. * torch.pi * torch.rand(batchSize, numElectrons)
+    phi = torch.acos(2. * torch.rand(batchSize, numElectrons) - 1.)
     x = r * torch.sin(phi) * torch.cos(theta)
     y = r * torch.sin(phi) * torch.sin(theta)
     z = r * torch.cos(phi)
-    return torch.cat([x, y, z])
+    return torch.stack([x, y, z], dim=2)
 
 # Generates a proposal for new electron positions by moving into a random direction (uniform) by a random distance (scaled chi distribution)
 def generateMetropolisHastingsProposal(currentElectronPositions, sphereRadius):
-    distanceScaling = 0.1
+    distanceScaling = 0.25
     #unitPositions = currentElectronPositions / torch.linalg.norm(currentElectronPositions, dim=-1)
     unitPositions = torch.nn.functional.normalize(currentElectronPositions, p=2, dim=-1)
     directionVectors = torch.randn(currentElectronPositions.shape)
@@ -29,23 +29,28 @@ def generateMetropolisHastingsProposal(currentElectronPositions, sphereRadius):
     proposalPositions = sphereRadius * (torch.cos(randDistances) * unitPositions + torch.sin(randDistances) * tangentialDirectionVectors)
     return proposalPositions
 
-def conductMetropolisHastingsStep(currentElectronPositions, waveFunction, sphereRadius):
+def conductSingleMetropolisHastingsStep(currentElectronPositions, waveFunction, sphereRadius):
     proposedElectronPositions = generateMetropolisHastingsProposal(currentElectronPositions, sphereRadius)
-    densityRatio = waveFunction(proposedElectronPositions)**2 / waveFunction(currentElectronPositions)**2
-    if densityRatio >= 1:
-        return proposedElectronPositions
-    else:
-        acceptQuantity = np.random.uniform()
-        if acceptQuantity <= densityRatio:
-            return proposedElectronPositions
-        else:
-            return currentElectronPositions
+    densityRatio = (torch.pow(waveFunction(proposedElectronPositions), 2.) / torch.pow(waveFunction(currentElectronPositions), 2.)).squeeze(-1)
+    batchSize = currentElectronPositions.shape[0]
+    numElectrons = currentElectronPositions.shape[1]
+
+    acceptQuantity = torch.rand(batchSize)
+    acceptDecision = (acceptQuantity <= densityRatio).unsqueeze(-1).unsqueeze(-1).expand(batchSize, numElectrons, 3)
+    possiblyNewElectronPositions = torch.where(acceptDecision, proposedElectronPositions, currentElectronPositions)
+
+    return possiblyNewElectronPositions
         
-def sampleFromWaveFunction(waveFunction, numElectrons, sphereRadius, numMHSteps = 10):
-    electronPositions = torch.stack([sampleUniformOnSphere(sphereRadius) for _ in range(numElectrons)]).unsqueeze(0)
+def sampleFromWaveFunction(waveFunction, batchSize, numElectrons, sphereRadius, numMHSteps = 64):
+    electronPositions = sampleUniformOnSphere(batchSize, numElectrons, sphereRadius)
+    
     for _ in range(numMHSteps):
-        electronPositions = conductMetropolisHastingsStep(electronPositions, waveFunction, sphereRadius)
+        electronPositions = conductSingleMetropolisHastingsStep(electronPositions, waveFunction, sphereRadius)
     return electronPositions
 
-def sampleBatchFromWaveFunction(batchSize, waveFunction, numElectrons, sphereRadius, numMHSteps = 10):
-    return torch.cat([sampleFromWaveFunction(waveFunction, numElectrons, sphereRadius, numMHSteps) for _ in range(batchSize)])
+#def sampleBatchFromWaveFunction(batchSize, waveFunction, numElectrons, sphereRadius, numMHSteps = 64):
+#    def callableSampleFunc(batchIndex):
+#        return sampleFromWaveFunction(waveFunction, numElectrons, sphereRadius, numMHSteps)
+#    helperTensor = torch.randn(batchSize)
+#    return torch.func.vmap(callableSampleFunc, randomness="different")(helperTensor)
+#    #return torch.cat([sampleFromWaveFunction(waveFunction, numElectrons, sphereRadius, numMHSteps) for _ in range(batchSize)])

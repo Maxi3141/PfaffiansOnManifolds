@@ -4,11 +4,11 @@ from computation import Physics
 from computation import StatBasics
 
 def main():
-    numElectrons       = 6
-    numSpinUpElectrons = 4
-    numOrbitals        = 5
+    numElectrons       = 2
+    numSpinUpElectrons = 1
+    numOrbitals        = 4
     sphereRadius       = 1.0
-    particleMass       = 1.0
+    particleMass       = 100.0
 
     resumeTraining         = False
     computeEnergyInterval  = 10
@@ -17,7 +17,7 @@ def main():
     saveInterval           = 100
     batchSize              = 16
     embeddingDim           = 128
-    useCuda                = True
+    useCuda                = False
 
     print("--- NeuralPfaffians on Manifolds ---")
     print(f"Simulating {numElectrons} electrons ({numSpinUpElectrons} spin up, {(numElectrons - numSpinUpElectrons)}, spin down) in {numOrbitals} orbitals.")
@@ -26,7 +26,6 @@ def main():
         torch.set_default_device("cuda")
 
     waveNetwork = WaveFunction.MultiElectronWaveFunction(numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim)
-    waveNetwork.to("cuda")
     print(f"Created wave function Pfaffians with {sum(p.numel() for p in waveNetwork.parameters())} parameters in total.")
     if resumeTraining:
         waveNetwork.load_state_dict(torch.load(f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up.pth"))
@@ -38,8 +37,11 @@ def main():
     for iter in range(maxTrainingIter):
         print(f"iteration {iter}...")
 
-        learningRate = 0.02 * (1.0 + float(iter) * 1e-4)**-1
-        parameterGradient = Physics.estimateVMCGradient(waveNetwork, batchSize)
+        electronLocations = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
+
+        #learningRate = 0.08 * (1.0 + float(iter) * 1e-4)**-1
+        learningRate = 8.0 * (1.0 + float(iter) * 1e-4)**-1
+        parameterGradient = Physics.estimateVMCGradient(waveNetwork, batchSize, electronLocations)
         waveNetwork.updateWeights(parameterGradient, learningRate)
         print(f"   -> Updated weights using VMC gradient.")
 
@@ -48,13 +50,11 @@ def main():
             print(f"   -> Saved weights.")
 
         if iter % computeEnergyInterval == 0:
-            electronLocations = StatBasics.sampleBatchFromWaveFunction(batchSize, waveNetwork, numElectrons, sphereRadius)
             localEnergyData = Physics.getAvgLowHighLocalEnergy(waveNetwork, electronLocations, sphereRadius, particleMass)
             localEnergyHistory.append(localEnergyData)
             print(f"   -> Local energy in batch of {batchSize}: Low = {localEnergyData[1]} ; Avg = {localEnergyData[0]} ; High = {localEnergyData[2]}")
 
         if iter % computeThomsonInterval == 0:
-            electronLocations = StatBasics.sampleBatchFromWaveFunction(batchSize, waveNetwork, numElectrons, sphereRadius)
             thomsonEnergyData = Physics.getAvgLowHighThomsonEnergy(electronLocations)
             thomsonEnergyHistory.append(thomsonEnergyData)
             print(f"   -> Thomson energy in batch of {batchSize}: Low = {thomsonEnergyData[1]} ; Avg = {thomsonEnergyData[0]} ; High = {thomsonEnergyData[2]}")

@@ -4,6 +4,7 @@ import torch
 
 from computation import LinAlgBasics as laBasics
 from computation import Physics as phys
+from computation import StatBasics
 
 
 class TestLinAlg(unittest.TestCase):
@@ -72,5 +73,33 @@ class LogSurfaceLaplacianTest(unittest.TestCase):
             discrepany = computedLogSurfaceLaplacians - exactLogSurfaceLaplacians[rIndex]
             self.assertAlmostEqual(torch.linalg.norm(discrepany).item(), 0.0, 5)
 
+#Model probability density so that it is continuous and the probabiltity of landing on the top half of the sphere is 90%.
+
+class SamplingTestNeuralNetwork(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        z = x[:,:,2]
+        pSingleSqrt = torch.where(z > 0., torch.sqrt(7. / (10. * torch.pi) * z + 1. / (10. * torch.pi)), torch.sqrt(1. / (10. * torch.pi) * z + 1. / (10. * torch.pi)))
+        pSqrt = torch.prod(pSingleSqrt, dim=-1)
+        return pSqrt
+
+#If everything is correct, the ratio of electrons on the top half should be 90% if the Metropolis-Hasting-Implementation works correctly.
+#If the ratio is far below 90% (or above), either something is wrong or we just had bad luck (Many electrons on the bottom half are unlikely but possible). 
+#TODO: Add some cutoff so that the test fails, if the cutoff is not reached.
+class SamplingTest(unittest.TestCase):
+    def testSampling(self):
+        testWaveNetwork = SamplingTestNeuralNetwork()
+        batchSize = 16
+        numElectrons = 10
+        sampledLocations = StatBasics.sampleFromWaveFunction(testWaveNetwork, batchSize, numElectrons, 1.0, 64)
+        numTopHalfElectrons = torch.sum(torch.where(sampledLocations[:,:,2] > 0., 1., 0.))
+        numTotalElectrons = batchSize * numElectrons
+        ratioTopHalfElectrons = float(numTopHalfElectrons) / float(numTotalElectrons)
+        print("Roughly 0.9 of all electrons should be on the top half of the sphere. Measured: ratioTopHalfElectrons =", ratioTopHalfElectrons)
+
 if __name__ == "__main__":
+    print("---Running tests for linear algebra, surface differential operators and sampling---")
+    print("Warning: The test for sampling is non-deterministic and can fail by design when a statistical type I error for H0 = \"Implementation works\" occurs!")
     unittest.main()
