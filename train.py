@@ -2,21 +2,23 @@ import torch
 from nn import WaveFunction
 from computation import Physics
 from computation import StatBasics
+from decimal import Decimal
 
 def main():
     numElectrons       = 2
     numSpinUpElectrons = 1
-    numOrbitals        = 4
+    numOrbitals        = 3
     sphereRadius       = 1.0
-    particleMass       = 100.0
+    particleMass       = 1e-1
 
-    resumeTraining         = False
+    resumeTraining         = True
     computeEnergyInterval  = 10
     computeThomsonInterval = 10
-    maxTrainingIter        = 100000
-    saveInterval           = 100
+    maxTrainingIter        = 10000
+    saveInterval           = 10
     batchSize              = 16
     embeddingDim           = 128
+    numOrbitalParams       = 32
     useCuda                = False
 
     print("--- NeuralPfaffians on Manifolds ---")
@@ -25,10 +27,12 @@ def main():
     if useCuda:
         torch.set_default_device("cuda")
 
-    waveNetwork = WaveFunction.MultiElectronWaveFunction(numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim)
+    strMass = '%.2E' % Decimal(particleMass)
+
+    waveNetwork = WaveFunction.MultiElectronWaveFunction(numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim, numOrbitalParams)
     print(f"Created wave function Pfaffians with {sum(p.numel() for p in waveNetwork.parameters())} parameters in total.")
     if resumeTraining:
-        waveNetwork.load_state_dict(torch.load(f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up.pth"))
+        waveNetwork.load_state_dict(torch.load(f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}.pth"))
 
     #TODO: Do something with the energy histories.
     localEnergyHistory   = []
@@ -40,13 +44,13 @@ def main():
         electronLocations = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
 
         #learningRate = 0.08 * (1.0 + float(iter) * 1e-4)**-1
-        learningRate = 8.0 * (1.0 + float(iter) * 1e-4)**-1
+        learningRate = 0.08 * (1.0 + float(iter) * 1e-4)**-1
         parameterGradient = Physics.estimateVMCGradient(waveNetwork, batchSize, electronLocations)
         waveNetwork.updateWeights(parameterGradient, learningRate)
         print(f"   -> Updated weights using VMC gradient.")
 
         if iter % saveInterval == 0:
-            torch.save(waveNetwork.state_dict(), f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up.pth")
+            torch.save(waveNetwork.state_dict(), f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}.pth")
             print(f"   -> Saved weights.")
 
         if iter % computeEnergyInterval == 0:

@@ -24,6 +24,7 @@ def generateMetropolisHastingsProposal(currentElectronPositions, sphereRadius):
     unitPositions = torch.nn.functional.normalize(currentElectronPositions, p=2, dim=-1)
     directionVectors = torch.randn(currentElectronPositions.shape)
     tangentialDirectionVectors = directionVectors - torch.matmul(directionVectors.unsqueeze(-2), unitPositions.unsqueeze(-1)).squeeze(-1) * unitPositions
+    tangentialDirectionVectors = torch.nn.functional.normalize(tangentialDirectionVectors, p=2., dim=-1)
     chiDistribution = torch.distributions.chi2.Chi2(2.).expand(torch.tensor([currentElectronPositions.shape[0], currentElectronPositions.shape[1], 1]))
     randDistances = distanceScaling * torch.sqrt(chiDistribution.sample())
     proposalPositions = sphereRadius * (torch.cos(randDistances) * unitPositions + torch.sin(randDistances) * tangentialDirectionVectors)

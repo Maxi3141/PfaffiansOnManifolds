@@ -1,11 +1,13 @@
 import torch
 from nn import ElectronEmbedding
+from nn import GeometryProvider
 from computation import LinAlgBasics as laBasics
 
 class MultiElectronWaveFunction(torch.nn.Module):
-    def __init__(self, numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim):
+    def __init__(self, numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim, numOrbitalParams):
         super().__init__()
         self.embeddingDim = embeddingDim
+        self.numOrbitalParams = numOrbitalParams
         self.numPfaffians = 4
         self.numElectrons = numElectrons
         self.numOrbitals = numOrbitals
@@ -13,8 +15,9 @@ class MultiElectronWaveFunction(torch.nn.Module):
         self.sphereRadius = sphereRadius
         self.particleMass = particleMass
 
+        self.orbitalParametrizer = GeometryProvider.GeometryProvider(self.numOrbitalParams)
         self.embeddingNetwork = ElectronEmbedding.ElectronEmbeddingNetwork(self.embeddingDim)
-        self.pfaffianNetworks = torch.nn.ModuleList([SinglePfaffianNetwork(numElectrons, numOrbitals, self.embeddingDim, numSpinUpElectrons) for _ in range(self.numPfaffians)])
+        self.pfaffianNetworks = torch.nn.ModuleList([SinglePfaffianNetwork(numElectrons, numOrbitals, self.embeddingDim, self.numOrbitalParams, numSpinUpElectrons) for _ in range(self.numPfaffians)])
         self.pfaffianScalings = torch.nn.Linear(self.numPfaffians, 1, bias=False)
 
         self.jastrowLinear0 = torch.nn.Linear(self.embeddingDim, 16)
@@ -30,10 +33,11 @@ class MultiElectronWaveFunction(torch.nn.Module):
         spinUpIndices = tuple(range(self.numSpinUpElectrons))
         spinDownIndices = tuple(range(self.numSpinUpElectrons, self.numElectrons))
         electronEmbeddings = self.embeddingNetwork(x, spinUpIndices, spinDownIndices)
+        orbitalParams = self.orbitalParametrizer(x)
 
         #TODO: Add vmap stuff to the "forwards" below
         jastrowScalings = self.forwardJastrowScalings(electronEmbeddings, x)
-        pfaffians = torch.stack([pfNetwork(electronEmbeddings) for pfNetwork in self.pfaffianNetworks], dim=1)
+        pfaffians = torch.stack([pfNetwork(electronEmbeddings, orbitalParams) for pfNetwork in self.pfaffianNetworks], dim=1)
         result = torch.exp(jastrowScalings) * self.pfaffianScalings(pfaffians)
         return result
 
@@ -75,28 +79,37 @@ class MultiElectronWaveFunction(torch.nn.Module):
                 currentParams += -learningRate * newGradient
 
 class SinglePfaffianNetwork(torch.nn.Module):
-    def __init__(self, numElectrons, numOrbitals, embeddingSize, numUpElectrons):
+    def __init__(self, numElectrons, numOrbitals, embeddingSize, numOrbitalParams, numUpElectrons):
         super().__init__()
-        self.numElectrons = numElectrons
-        self.numOrbitals = numOrbitals
-        self.embeddingSize = embeddingSize
-        self.numUpElectrons = numUpElectrons
+        self.numElectrons     = numElectrons
+        self.numOrbitals      = numOrbitals
+        self.embeddingSize    = embeddingSize
+        self.numOrbitalParams = numOrbitalParams
+        self.numUpElectrons   = numUpElectrons
 
-        self.readoutLayersA          = torch.nn.ModuleList([torch.nn.Linear(2 * self.embeddingSize, 1, bias=False) for _ in range(self.numOrbitals**2)])
-        self.readoutLayersDiagPhi    = torch.nn.ModuleList([torch.nn.Linear(self.embeddingSize, 1, bias=False) for _ in range(self.numOrbitals)])
-        self.readoutLayersOffdiagPhi = torch.nn.ModuleList([torch.nn.Linear(self.embeddingSize, 1, bias=False) for _ in range(self.numOrbitals)])
+        #self.readoutLayersA          = torch.nn.ModuleList([torch.nn.Linear(2 * self.embeddingSize, 1, bias=False) for _ in range(self.numOrbitals**2)])
+        #self.readoutLayersDiagPhi    = torch.nn.ModuleList([torch.nn.Linear(self.embeddingSize, 1, bias=False) for _ in range(self.numOrbitals)])
+        #self.readoutLayersOffdiagPhi = torch.nn.ModuleList([torch.nn.Linear(self.embeddingSize, 1, bias=False) for _ in range(self.numOrbitals)])
 
-        for layer in self.readoutLayersA:
-            torch.nn.init.normal_(layer.weight, mean=0., std=1.)
-        for layer in self.readoutLayersDiagPhi:
-            torch.nn.init.normal_(layer.weight, mean=0., std=1.)
-        for layer in self.readoutLayersOffdiagPhi:
-            torch.nn.init.normal_(layer.weight, mean=0., std=1.)
+        #for layer in self.readoutLayersA:
+        #    torch.nn.init.normal_(layer.weight, mean=0., std=1.)
+        #for layer in self.readoutLayersDiagPhi:
+        #    torch.nn.init.normal_(layer.weight, mean=0., std=1.)
+        #for layer in self.readoutLayersOffdiagPhi:
+        #    torch.nn.init.normal_(layer.weight, mean=0., std=1.)
 
-    def forward(self, electronEmbeddings):
-        A = self.forwardA(electronEmbeddings)
-        phi = self.forwardDiagonalPhi(electronEmbeddings)
-        phiHat = self.forwardOffdiagonalPhi(electronEmbeddings)
+        self.readoutLayerA           = torch.nn.Linear(self.numOrbitalParams, self.numOrbitals * self.numOrbitals, bias=False)
+        self.readoutLayerDiagPhi     = torch.nn.Linear(self.numOrbitalParams, self.embeddingSize * self.numOrbitals, bias=False)
+        self.readoutLayerOffDiagPhi  = torch.nn.Linear(self.numOrbitalParams, self.embeddingSize * self.numOrbitals, bias=False)
+
+        torch.nn.init.normal_(self.readoutLayerA.weight, mean=0., std=1.)
+        torch.nn.init.normal_(self.readoutLayerDiagPhi.weight, mean=0., std=1.)
+        torch.nn.init.normal_(self.readoutLayerOffDiagPhi.weight, mean=0., std=1.)
+
+    def forward(self, electronEmbeddings, orbitalParams):
+        A = self.forwardA(electronEmbeddings, orbitalParams)
+        phi = self.forwardDiagonalPhi(electronEmbeddings, orbitalParams)
+        phiHat = self.forwardOffdiagonalPhi(electronEmbeddings, orbitalParams)
 
         phiUp      = phi[:,:self.numUpElectrons,:]
         phiDown    = phi[:,self.numUpElectrons:,:]
@@ -107,10 +120,11 @@ class SinglePfaffianNetwork(torch.nn.Module):
         orbitAOrbit = torch.matmul(torch.matmul(orbitElecPairing, A), torch.transpose(orbitElecPairing, dim0=1, dim1=2))
 
         pfOrbitAOrbit = torch.vmap(laBasics.getPfaffian)(orbitAOrbit)
-        #pfA           = torch.vmap(laBasics.getPfaffian)(A)
+        pfA           = torch.vmap(laBasics.getPfaffian)(A)
 
-        return pfOrbitAOrbit #/ pfA
+        return pfOrbitAOrbit / pfA
 
+    """
     def forwardA(self, electronEmbeddings):
         numBatches = electronEmbeddings.shape[0]
         numElectrons = electronEmbeddings.shape[1]
@@ -127,7 +141,20 @@ class SinglePfaffianNetwork(torch.nn.Module):
         aOffDiag = 0.5 * (readoutsA + torch.transpose(readoutsA, dim0=1, dim1=2))
         aComplete = torch.cat((torch.cat((aDiag, aOffDiag), dim=2), torch.cat((-aOffDiag, aDiag), dim=2)), dim=1)
         return aComplete
+    """
 
+    #TODO: The entire structure of this will have to be reworked once more complicated manifolds with multiple charts are supported.
+    def forwardA(self, electronEmbeddings, orbitalParams):
+        batchSize = electronEmbeddings.shape[0]
+
+        readoutsA = self.readoutLayerA(orbitalParams).reshape([batchSize, self.numOrbitals, self.numOrbitals])
+
+        aDiag = 0.5 * (readoutsA - torch.transpose(readoutsA, dim0=1, dim1=2))
+        aOffDiag = 0.5 * (readoutsA + torch.transpose(readoutsA, dim0=1, dim1=2))
+        aComplete = torch.cat((torch.cat((aDiag, aOffDiag), dim=2), torch.cat((-aOffDiag, aDiag), dim=2)), dim=1)
+        return aComplete
+
+    """
     def forwardDiagonalPhi(self, electronEmbeddings):
         # electronEmbedding.shape = [NUM_BATCHES, NUM_ELECTRONS, EMBEDDING_DIM]
         # self.readoutLayersDiagPhi[i](electronEmbeddings).shape = [NUM_BATCHES, NUM_ELECTRONS, 1]
@@ -143,3 +170,14 @@ class SinglePfaffianNetwork(torch.nn.Module):
     def forwardOffdiagonalPhi(self, electronEmbeddings):
         readoutsOffdiagPhi = torch.cat([self.readoutLayersOffdiagPhi[i](electronEmbeddings) for i in range(self.numOrbitals)], dim=2)
         return readoutsOffdiagPhi
+    """
+
+    def forwardDiagonalPhi(self, electronEmbeddings, orbitalParams):
+        batchSize = electronEmbeddings.shape[0]
+        projectionW = self.readoutLayerDiagPhi(orbitalParams).reshape([batchSize, self.embeddingSize, self.numOrbitals])
+        return torch.matmul(electronEmbeddings, projectionW)
+
+    def forwardOffdiagonalPhi(self, electronEmbeddings, orbitalParams):
+        batchSize = electronEmbeddings.shape[0]
+        projectionWHat = self.readoutLayerOffDiagPhi(orbitalParams).reshape([batchSize, self.embeddingSize, self.numOrbitals])
+        return torch.matmul(electronEmbeddings, projectionWHat)

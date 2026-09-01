@@ -29,7 +29,7 @@ def getSphereCurvatureTerm(batchSize: int, numElectrons: int, sphereRadius: floa
     #Keep this function only for future purposes when more general geometries will hopefully be available.
     return torch.zeros([batchSize, numElectrons])
 
-def computeLocalEnergy(waveFunction: torch.nn.Module, electronLocations: torch.Tensor, sphereRadius: float, particleMass: float = 1.0):
+def computeLocalEnergy(waveFunction: torch.nn.Module, electronLocations: torch.Tensor, sphereRadius: float, particleMass: float):
     #The Hamiltonian has three terms: The surface laplace term, the electrostatic term and the term for the manifolds curvature which is constant 0 for a sphere.
     #This implementation uses the stability trick using log for the kinetic term. TODO: Add reference to "Excited Pfaffians" paper.
 
@@ -124,10 +124,11 @@ def getAvgLowHighThomsonEnergy(electronLocations: torch.Tensor):
     numElectrons = electronLocations.shape[1]
     expandedElectronLocations = electronLocations.unsqueeze(2).expand(batchSize, numElectrons, numElectrons, 3).clone()
     distanceMatrix = torch.linalg.norm(expandedElectronLocations - torch.transpose(expandedElectronLocations, dim0=1, dim1=2), ord=2, dim=3)
+    #print("distanceMatrix =", distanceMatrix)
     energyMatrix = (1. / distanceMatrix)
     helperIndex = torch.arange(numElectrons)
     energyMatrix[:, helperIndex, helperIndex] = 0.
-    batchEnergies = torch.sum(energyMatrix, dim=(1,2))
+    batchEnergies = torch.sum(energyMatrix, dim=(1,2)) / 2.
     highEnergy = torch.max(batchEnergies).item()
     lowEnergy = torch.min(batchEnergies).item()
     avgEnergy = torch.sum(batchEnergies).item() / float(batchSize)

@@ -1,7 +1,7 @@
 import numpy as np
 
 n_batches = 1000
-n_points = 100
+n_points = 6
 
 energies = []
 
