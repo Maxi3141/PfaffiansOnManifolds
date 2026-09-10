@@ -31,6 +31,13 @@ class SurfaceLaplacianTestNeuralNetwork(torch.nn.Module):
     def forward(self, x):
         return torch.sum(torch.sin(x[:,:,0]) + torch.exp(x[:,:,1]) * x[:,:,2]**2, dim=1, keepdim=True)
 
+class PositiveOnlyTestNeuralNetwork(torch.nn.Module):
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, x):
+        return torch.pow(torch.sum(torch.sin(x[:,:,0]) + torch.exp(x[:,:,1]) * x[:,:,2]**2, dim=1, keepdim=True), 2.) + 1.0
+
 class SurfaceGradientTest(unittest.TestCase):
     def testSurfaceGradient(self):
         testWaveFunction = SurfaceLaplacianTestNeuralNetwork()
@@ -79,6 +86,16 @@ class LogSurfaceLaplacianTest(unittest.TestCase):
             computedLogSurfaceLaplacians = phys.getSurfaceLaplacian(testWaveFunction, evaluationPoints, r, True)
             discrepancy = computedLogSurfaceLaplacians - exactLogSurfaceLaplacians[rIndex]
             self.assertAlmostEqual(torch.linalg.norm(discrepancy).item(), 0.0, 5)
+
+class SurfaceLaplaceOverFunctionTest(unittest.TestCase):
+    def testLaplaceOverFunction(self):
+        testWaveFunction = PositiveOnlyTestNeuralNetwork()
+        electronLocations = StatBasics.sampleUniformOnSphere(16, 5)
+
+        classicComputation = phys.getSurfaceLaplacian(testWaveFunction, electronLocations, 1.0) / testWaveFunction(electronLocations)
+        logComputation     = phys.getSurfaceLaplacianOverFunction(testWaveFunction, electronLocations, 1.0)
+        discrepancy = torch.norm(classicComputation - logComputation, p=2.).item()
+        self.assertAlmostEqual(discrepancy, 0.0, 5)
 
 #Model probability density so that it is continuous and the probabiltity of landing on the top half of the sphere is 90%.
 

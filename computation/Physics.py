@@ -32,13 +32,7 @@ def getSphereCurvatureTerm(batchSize: int, numElectrons: int, sphereRadius: floa
 def computeLocalEnergy(waveFunction: torch.nn.Module, electronLocations: torch.Tensor, sphereRadius: float, particleMass: float):
     #The Hamiltonian has three terms: The surface laplace term, the electrostatic term and the term for the manifolds curvature which is constant 0 for a sphere.
 
-    #logSurfaceLaplacian = getSurfaceLaplacian(waveFunction, electronLocations, sphereRadius, True)
-    #logSurfaceGradient = torch.sum(getSurfaceGradient(waveFunction, electronLocations, True), dim=-1) 
-    #kineticTerm = logSurfaceLaplacian + torch.pow(logSurfaceGradient, 2.0)
-    #TODO: Replace the computation of the kinetic term below with the log version.
-    stabilizerConstant = 1e-7
-    kineticTerm = getSurfaceLaplacian(waveFunction, electronLocations, sphereRadius, False) / (waveFunction(electronLocations) + stabilizerConstant)
-
+    kineticTerm = getSurfaceLaplacianOverFunction(waveFunction, electronLocations, sphereRadius)
     electrostaticForces = getElectronPairForces(electronLocations)
     curvatureTerm = getSphereCurvatureTerm(electronLocations.shape[0], electronLocations.shape[1], sphereRadius)
 
@@ -66,6 +60,33 @@ def estimateVMCGradient(waveFunction: WaveFunction.MultiElectronWaveFunction, ba
         for batchIndex in range(batchSize):
             vmcGradient[subParameterIndex] += localEnergyDiff[batchIndex] * networkLogGradients[batchIndex][subParameterIndex] / float(batchSize)
     return vmcGradient
+
+def getSurfaceLaplacianOverFunction(waveFunction: torch.nn.Module, electronLocations: torch.Tensor, sphereRadius: float):
+    normals = torch.nn.functional.normalize(electronLocations, p=2, dim=2)
+    waveNetworkParams = dict(waveFunction.named_parameters())
+    logStabilizer = 1e-8
+
+    def callableLogWaveFunction(locations):
+            return torch.log(torch.abs(torch.func.functional_call(waveFunction, waveNetworkParams, locations.unsqueeze(0))) + logStabilizer)
+
+    callableLogGradient = torch.func.jacfwd(callableLogWaveFunction)
+    embeddedLogGradients = torch.func.vmap(callableLogGradient)(electronLocations).squeeze(dim=(1,2))
+
+    def extractRelevantDerivatives(fullHessian: torch.Tensor):
+        helperIndex = torch.arange(fullHessian.shape[0])
+        return fullHessian[helperIndex,:,helperIndex,:]
+    
+    callableLogHessian = torch.func.jacfwd(torch.func.jacfwd(callableLogWaveFunction))
+    completeLogHessian = torch.func.vmap(callableLogHessian)(electronLocations).squeeze(dim=(1,2))
+    embeddedLogHessians = torch.func.vmap(extractRelevantDerivatives)(completeLogHessian)
+
+    hessianDivFunction = embeddedLogHessians + torch.matmul(embeddedLogGradients.unsqueeze(-1), embeddedLogGradients.unsqueeze(-2))
+
+    laplaceTerm = torch.sum(torch.diagonal(embeddedLogHessians, offset=0, dim1=-1, dim2=-2), -1).squeeze(-1) + torch.pow(torch.norm(embeddedLogGradients, p=2., dim=-1), 2.)
+    hessianTerm = torch.matmul(torch.matmul(normals.unsqueeze(-2), hessianDivFunction), normals.unsqueeze(-1)).squeeze(dim=(-1, -2))
+    gradientTerm = 2. / sphereRadius * torch.matmul(normals.unsqueeze(-2), embeddedLogGradients.unsqueeze(-1)).squeeze()
+
+    return laplaceTerm - hessianTerm - gradientTerm
 
 def getSurfaceGradient(waveFunction: torch.nn.Module, electronLocations: torch.Tensor, useLogScaling: bool = False):
     normals = torch.nn.functional.normalize(electronLocations, p=2, dim=2)
