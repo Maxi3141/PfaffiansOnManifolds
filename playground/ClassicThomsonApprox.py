@@ -4,7 +4,7 @@ from mpl_toolkits.mplot3d import Axes3D
 from computation import StatBasics as stats
 import numpy as np
 
-n_points = 200
+n_points = 128
 point_forces = []
 point_positions = []
 

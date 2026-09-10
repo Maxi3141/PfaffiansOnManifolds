@@ -31,16 +31,18 @@ def getSphereCurvatureTerm(batchSize: int, numElectrons: int, sphereRadius: floa
 
 def computeLocalEnergy(waveFunction: torch.nn.Module, electronLocations: torch.Tensor, sphereRadius: float, particleMass: float):
     #The Hamiltonian has three terms: The surface laplace term, the electrostatic term and the term for the manifolds curvature which is constant 0 for a sphere.
-    #This implementation uses the stability trick using log for the kinetic term. TODO: Add reference to "Excited Pfaffians" paper.
 
-    logSurfaceLaplacian = getSurfaceLaplacian(waveFunction, electronLocations, sphereRadius, True)
-    logSurfaceGradient = torch.sum(getSurfaceGradient(waveFunction, electronLocations, True), dim=-1)
+    #logSurfaceLaplacian = getSurfaceLaplacian(waveFunction, electronLocations, sphereRadius, True)
+    #logSurfaceGradient = torch.sum(getSurfaceGradient(waveFunction, electronLocations, True), dim=-1) 
+    #kineticTerm = logSurfaceLaplacian + torch.pow(logSurfaceGradient, 2.0)
+    #TODO: Replace the computation of the kinetic term below with the log version.
+    stabilizerConstant = 1e-7
+    kineticTerm = getSurfaceLaplacian(waveFunction, electronLocations, sphereRadius, False) / (waveFunction(electronLocations) + stabilizerConstant)
 
-    laplaceTerm = logSurfaceLaplacian + torch.pow(logSurfaceGradient, 2.0)
     electrostaticForces = getElectronPairForces(electronLocations)
     curvatureTerm = getSphereCurvatureTerm(electronLocations.shape[0], electronLocations.shape[1], sphereRadius)
 
-    return -1. / (2. * particleMass) * torch.sum(laplaceTerm, dim=1) + 0.5 * torch.sum(electrostaticForces, dim=1) + 0.5 * torch.sum(curvatureTerm, dim=1)
+    return -1. / (2. * particleMass) * torch.sum(kineticTerm, dim=1) + 0.5 * torch.sum(electrostaticForces, dim=1) + 0.5 * torch.sum(curvatureTerm, dim=1)
 
 def estimateExpectedLocalEnergy(waveFunction: WaveFunction.MultiElectronWaveFunction, numSamples: int = 16, presampledElectrons: torch.Tensor = None):
     if presampledElectrons == None:
@@ -65,13 +67,6 @@ def estimateVMCGradient(waveFunction: WaveFunction.MultiElectronWaveFunction, ba
             vmcGradient[subParameterIndex] += localEnergyDiff[batchIndex] * networkLogGradients[batchIndex][subParameterIndex] / float(batchSize)
     return vmcGradient
 
-#TODO: Remove this function?
-#def estimateVariationalEnergy(waveFunction, numElectrons, sphereRadius):
-#    batchSize = 16
-#    electronSamples = torch.stack([StatBasics.sampleFromWaveFunction(waveFunction, numElectrons, sphereRadius) for _ in range(batchSize)])
-#    surfaceLaplacians = getSurfaceLaplacian(waveFunction, electronSamples, sphereRadius)
-
-#TODO: Add tests for log-versions of surface gradient and Laplace-Beltrami.
 def getSurfaceGradient(waveFunction: torch.nn.Module, electronLocations: torch.Tensor, useLogScaling: bool = False):
     normals = torch.nn.functional.normalize(electronLocations, p=2, dim=2)
     waveNetworkParams = dict(waveFunction.named_parameters())

@@ -7,7 +7,6 @@ import torch
 # "GeometryProvider" takes in the locations of the sampled electrons and returns 
 # parameters which can be used instead of the output of MetaGNN.
 
-# TODO: Structure "forward" in a way that extracts the geometry from the electron locations in a "nicer" way.
 class GeometryProvider(torch.nn.Module):
     def __init__(self, geometryEmbeddingDim):
         super().__init__()

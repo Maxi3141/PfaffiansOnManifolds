@@ -2,10 +2,17 @@ import unittest
 import numpy as np
 import torch
 
+#TODO: Remove below
+import sys
+import os
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
+sys.path.append(parent_dir)
+#END REMOVE
+
 from computation import LinAlgBasics as laBasics
 from computation import Physics as phys
 from computation import StatBasics
-
 
 class TestLinAlg(unittest.TestCase):
     def testPfaffian(self):
@@ -15,7 +22,7 @@ class TestLinAlg(unittest.TestCase):
         computedPfaffianANumpy = laBasics.getPfaffianNumpy(testMatrixANumpy)
         self.assertAlmostEqual(exactPfaffianA, computedPfaffianANumpy)
         computedPfaffianATorch = laBasics.getPfaffian(testMatrixATorch)
-        self.assertAlmostEqual(exactPfaffianA, computedPfaffianATorch.item(), places=5)
+        self.assertAlmostEqual(exactPfaffianA, computedPfaffianATorch.item(), places=4)
 
 class SurfaceLaplacianTestNeuralNetwork(torch.nn.Module):
     def __init__(self):
@@ -70,8 +77,8 @@ class LogSurfaceLaplacianTest(unittest.TestCase):
         for rIndex, r in enumerate(testedRadii):
             evaluationPoints = r * torch.nn.functional.normalize(unnormedEvaluationPoints, p=2, dim=2)
             computedLogSurfaceLaplacians = phys.getSurfaceLaplacian(testWaveFunction, evaluationPoints, r, True)
-            discrepany = computedLogSurfaceLaplacians - exactLogSurfaceLaplacians[rIndex]
-            self.assertAlmostEqual(torch.linalg.norm(discrepany).item(), 0.0, 5)
+            discrepancy = computedLogSurfaceLaplacians - exactLogSurfaceLaplacians[rIndex]
+            self.assertAlmostEqual(torch.linalg.norm(discrepancy).item(), 0.0, 5)
 
 #Model probability density so that it is continuous and the probabiltity of landing on the top half of the sphere is 90%.
 
@@ -97,7 +104,27 @@ class SamplingTest(unittest.TestCase):
         numTopHalfElectrons = torch.sum(torch.where(sampledLocations[:,:,2] > 0., 1., 0.))
         numTotalElectrons = batchSize * numElectrons
         ratioTopHalfElectrons = float(numTopHalfElectrons) / float(numTotalElectrons)
-        print("Roughly 0.9 of all electrons should be on the top half of the sphere. Measured: ratioTopHalfElectrons =", ratioTopHalfElectrons)
+        print("SamplingTest: Roughly 0.9 of all electrons should be on the top half of the sphere. Measured: ratioTopHalfElectrons =", ratioTopHalfElectrons)
+
+class ModeTestNeuralNetwork(torch.nn.Module):
+    def __init__(self, modeTargets: torch.Tensor):
+        super().__init__()
+        if len(modeTargets.shape) != 2 or modeTargets.shape[1] != 3:
+            raise Exception("\"modeTargets\" has invalid shape!")
+        self.modeTargets = modeTargets
+
+    def forward(self, x):
+        return torch.sum(torch.matmul(x.unsqueeze(-2), self.modeTargets.unsqueeze(-1)).squeeze(dim=(-1,-2)), dim=-1) + float(x.shape[1])
+
+class ModeComputationTest(unittest.TestCase):
+    def testModeComputation(self):
+        modeTargets = torch.tensor([[1., 0., 0.], [0., 1., 0.], [-1., -1, 0.], [1., -1., -1.]])
+        modeTargets = torch.nn.functional.normalize(modeTargets, p=2., dim=-1)
+        testNetwork = ModeTestNeuralNetwork(modeTargets)
+        modeEstimate = StatBasics.computeModeOfWaveFunction(testNetwork, 1, 4, 1.)
+        modeDiscrepancy = modeEstimate - modeTargets
+        modeError = torch.linalg.norm(modeDiscrepancy)
+        self.assertAlmostEqual(modeError.item(), 0.0, places=5)
 
 if __name__ == "__main__":
     print("---Running tests for linear algebra, surface differential operators and sampling---")

@@ -42,16 +42,30 @@ def conductSingleMetropolisHastingsStep(currentElectronPositions, waveFunction, 
 
     return possiblyNewElectronPositions
         
-def sampleFromWaveFunction(waveFunction, batchSize, numElectrons, sphereRadius, numMHSteps = 64):
+def sampleFromWaveFunction(waveFunction, batchSize, numElectrons, sphereRadius, numMHSteps = 80):
     electronPositions = sampleUniformOnSphere(batchSize, numElectrons, sphereRadius)
     
     for _ in range(numMHSteps):
         electronPositions = conductSingleMetropolisHastingsStep(electronPositions, waveFunction, sphereRadius)
     return electronPositions
 
-#def sampleBatchFromWaveFunction(batchSize, waveFunction, numElectrons, sphereRadius, numMHSteps = 64):
-#    def callableSampleFunc(batchIndex):
-#        return sampleFromWaveFunction(waveFunction, numElectrons, sphereRadius, numMHSteps)
-#    helperTensor = torch.randn(batchSize)
-#    return torch.func.vmap(callableSampleFunc, randomness="different")(helperTensor)
-#    #return torch.cat([sampleFromWaveFunction(waveFunction, numElectrons, sphereRadius, numMHSteps) for _ in range(batchSize)])
+def computeModeOfWaveFunction(waveFunction, batchSize, numElectrons, sphereRadius, maxIter = 64, convergenceMultiplier: float = 0.1):
+    electronPositions = sampleUniformOnSphere(batchSize, numElectrons, sphereRadius)
+    waveNetworkParams = dict(waveFunction.named_parameters())
+
+    def callableProbabilityFunction(elecPos):
+        return torch.pow(torch.func.functional_call(waveFunction, waveNetworkParams, elecPos.unsqueeze(0)), 2.)
+
+    for i in range(maxIter):
+        probGradient = torch.vmap(torch.func.jacfwd(callableProbabilityFunction))(electronPositions).detach()
+        probGradient = probGradient.squeeze(dim=(1,2))
+
+        normals = torch.nn.functional.normalize(electronPositions, p=2, dim=-1)
+        surfaceProjections = torch.eye(3).repeat(electronPositions.shape[0], electronPositions.shape[1], 1, 1) - torch.matmul(normals.unsqueeze(-1), normals.unsqueeze(-2))
+        surfaceProbGradients = torch.matmul(surfaceProjections, probGradient.unsqueeze(-1)).squeeze(-1)
+
+        electronPositions = electronPositions + convergenceMultiplier * surfaceProbGradients
+        electronPositions = torch.nn.functional.normalize(electronPositions, p=2., dim=-1)
+        #TODO: Somehow incorporate the norm of "surfaceProbGradients" to determine whether convergence has been reached.
+
+    return electronPositions

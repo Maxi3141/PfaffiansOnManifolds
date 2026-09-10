@@ -19,9 +19,7 @@ class ElectronEmbeddingNetwork(torch.nn.Module):
 
     #"electronLocations" has dimensions [NUMBER_OF_BATCHES, NUMBER_OF_ELECTRONS, 3]
     def forward(self, electronLocations: torch.Tensor, spinUpIndices: tuple[int, ...], spinDownIndices: tuple[int, ...]):
-        #TODO?: Add check to ensure spinUpIndices and spinDownIndices really do partition (0,1,...,numElectrons) properly
-        #... or compute spinDownIndices from spinUpIndices?
-        #Update: The first NUp electrons are spin up. The rest are spin down. TODO: Replace the tuples with just the cutoff index NUp.
+        #TODO: The first NUp electrons are spin up. The rest are spin down. Replace the tuples with just the cutoff index NUp.
         batchSize = electronLocations.shape[0]
         numElectrons = electronLocations.shape[1]
         
