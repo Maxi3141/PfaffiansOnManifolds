@@ -1,0 +1,19 @@
+{
+    "numElectrons": 4,
+    "numSpinUpElectrons": 2,
+    "numOrbitals": 6,
+    "sphereRadius": 1.0,
+    "particleMass": 0.1,
+    "batchSize": 8,
+    "embeddingDim": 256,
+    "numOrbitalParams": 64,
+    "numPfaffians": 4,
+    "computeEnergyInterval": 10,
+    "computeThomsonInterval": 1000,
+    "computeModeInterval": 1000,
+    "maxTrainingIter": 2000,
+    "saveInterval": 10,
+    "useCuda": false,
+    "optimizerMomentum": 0.99,
+    "optimizerDamping": 0.001
+}

@@ -42,7 +42,7 @@ def conductSingleMetropolisHastingsStep(currentElectronPositions, waveFunction, 
 
     return possiblyNewElectronPositions
         
-def sampleFromWaveFunction(waveFunction, batchSize, numElectrons, sphereRadius, numMHSteps = 80):
+def sampleFromWaveFunction(waveFunction, batchSize, numElectrons, sphereRadius, numMHSteps = 32):
     electronPositions = sampleUniformOnSphere(batchSize, numElectrons, sphereRadius)
     
     for _ in range(numMHSteps):

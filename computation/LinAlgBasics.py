@@ -31,30 +31,28 @@ def getPfaffianNumpy(A: np.typing.ArrayLike):
     return result
 
 def getHouseholderTransform(v: torch.Tensor, n: int):
-    vNorm = torch.linalg.norm(v)
-    paddedV = torch.cat([torch.zeros(n - v.shape[0]), v])
-    target = torch.cat([torch.zeros(n - v.shape[0]), (torch.sign(v[0]) * vNorm).unsqueeze(0), torch.zeros(v.shape[0] - 1)])
-    #target = torch.zeros(n)
-    #target[n - v.shape[0]] = torch.sign(v[0]) * vNorm
-    householderVector = paddedV - target
-    householderNorm = torch.linalg.norm(householderVector)
-    householderVector = (householderVector / householderNorm).unsqueeze(1)
-    return torch.eye(n) - 2. * torch.matmul(householderVector, torch.transpose(householderVector, dim0=0, dim1=1))
+    vNorm = torch.linalg.norm(v, ord=2., dim=-1, keepdim=True)
+    paddedV = torch.cat([torch.zeros(list(v.shape[:-1]) + [n - v.shape[-1]]), v], dim=-1)
+    target = torch.cat([torch.zeros(list(v.shape[:-1]) + [n - v.shape[-1]]), torch.sign(v[...,:1]) * vNorm, torch.zeros(list(v.shape[:-1]) + [v.shape[-1] - 1])], dim=-1)
+    householderVector = torch.nn.functional.normalize(paddedV - target, p=2., dim=-1)
+    invResult = 2. * torch.matmul(householderVector.unsqueeze(-1), householderVector.unsqueeze(-2))
+    return torch.eye(n).repeat(invResult[...,:1,:1].shape) - invResult
 
 def tridiagonalizeSkewSymmetricMatrix(A: torch.Tensor):
-    matSize = A.shape[0]
+    matSize = A.shape[-1]
     tridiagMat = A
     for column_index in range(matSize-2):
-        householderV = tridiagMat[column_index+1:matSize,column_index].squeeze()
+        householderV = tridiagMat[...,column_index+1:matSize,column_index]
         Q = getHouseholderTransform(householderV, matSize)
-        tridiagMat = torch.matmul(torch.matmul(Q, tridiagMat), torch.transpose(Q, dim0=0, dim1=1))
+        tridiagMat = torch.matmul(torch.matmul(Q, tridiagMat), torch.transpose(Q, dim0=-2, dim1=-1))
     return tridiagMat
 
-#Note: THis function expects 2D tensors (= Matrix). Remember to use vmap for batches.
+#Note: This function treats the last two dimensions as matrices that are being transformed.
 def getPfaffian(A: torch.Tensor):
-    matSize = A.shape[0]
+    matSize = A.shape[-1]
     if matSize % 2 == 1:
-        return torch.tensor([0.0])
+        return torch.zeros(A.shape[:-2])
     triDiag = tridiagonalizeSkewSymmetricMatrix(A)
-    result = torch.prod(torch.diagonal(triDiag[:,1::2][::2,:]))
+    result = torch.prod(torch.diagonal(triDiag[...,:,1::2][...,::2,:], offset=0, dim1=-2, dim2=-1), dim=-1)
     return result
+

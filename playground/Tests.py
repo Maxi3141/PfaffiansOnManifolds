@@ -24,6 +24,12 @@ class TestLinAlg(unittest.TestCase):
         computedPfaffianATorch = laBasics.getPfaffian(testMatrixATorch)
         self.assertAlmostEqual(exactPfaffianA, computedPfaffianATorch.item(), places=4)
 
+        testMatrixBTemplate = torch.randn(2, 3, 4, 4, dtype=torch.float64)
+        testMatrixBTorch = testMatrixBTemplate - torch.transpose(testMatrixBTemplate, dim0=-2, dim1=-1)
+        exactDetB = torch.linalg.det(testMatrixBTorch)
+        computedDetB = torch.pow(laBasics.getPfaffian(testMatrixBTorch), 2.)
+        self.assertAlmostEqual(torch.norm(exactDetB - computedDetB).item(), 0.0)
+
 class SurfaceLaplacianTestNeuralNetwork(torch.nn.Module):
     def __init__(self):
         super().__init__()

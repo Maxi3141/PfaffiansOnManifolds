@@ -2,6 +2,7 @@ import torch
 from nn import WaveFunction
 from computation import Physics
 from computation import StatBasics
+from computation import SpringOptimizer
 from decimal import Decimal
 
 def main():
@@ -20,11 +21,11 @@ def main():
     computeEnergyInterval  = 10
     computeThomsonInterval = 1000
     computeModeInterval    = 1000
-    maxTrainingIter        = 800
+    maxTrainingIter        = 200
     saveInterval           = 10
     useCuda                = False
     optimizerMomentum      = 0.99
-    optimizerDamping       = 0.000
+    optimizerDamping       = 0.001
 
     print("--- NeuralPfaffians on Manifolds ---")
     print(f"Simulating {numElectrons} electrons ({numSpinUpElectrons} spin up, {(numElectrons - numSpinUpElectrons)}, spin down) in {numOrbitals} orbitals.")
@@ -43,19 +44,26 @@ def main():
     localEnergyHistory   = []
     thomsonEnergyHistory = []
 
-    gradientMemory = [torch.zeros_like(subParameter) for subParameter in waveNetwork.getLogGradient(torch.zeros(1, numElectrons, 3))[0]]
+    numSkippedTrainingIters = 0
+
+    prevGradient = torch.zeros_like(torch.nn.utils.parameters_to_vector(waveNetwork.getLogGradient(torch.zeros(1, numElectrons, 3))))
+    tensorFormattedGradient = [torch.zeros_like(subParam) for subParam in waveNetwork.parameters()]
     for iter in range(maxTrainingIter):
         print(f"iteration {iter}...")
 
         electronLocations = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
 
-        learningRate = 0.08 * (1.0 + float(iter + 3000) * 1e-4)**-1
-        currentGradient = Physics.estimateVMCGradient(waveNetwork, batchSize, electronLocations)
-        gradientMemory = [optimizerMomentum * gradientMemory[i] + (1. - optimizerMomentum) * currentGradient[i].detach().clone() for i in range(len(gradientMemory))]
-        if iter == 0:
-            gradientMemory = currentGradient
-        waveNetwork.updateWeights(gradientMemory, (1. - optimizerDamping) * learningRate)
-        print(f"   -> Updated weights using VMC gradient.")
+        learningRate = 0.08 * (1.0 + float(iter) * 1e-4)**-1
+        springGradient, springSuccess = SpringOptimizer.getSpringOptimizerGradient(waveNetwork, electronLocations, prevGradient, optimizerDamping, optimizerMomentum)
+        if not springSuccess:
+            numSkippedTrainingIters += 1
+            print(f" Optimizer step computation failed. Matrix was not positive-definite. {numSkippedTrainingIters} iterations were now skipped in total.")
+            continue
+
+        torch.nn.utils.vector_to_parameters(springGradient, tensorFormattedGradient)
+        prevGradient = springGradient
+        waveNetwork.updateWeights(tensorFormattedGradient, learningRate)
+        print(f"   -> Updated weights using Spring gradient.")
 
         if iter % saveInterval == 0:
             torch.save(waveNetwork.state_dict(), f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}.pth")

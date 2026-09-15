@@ -19,11 +19,12 @@ numElectrons       = 2
 numSpinUpElectrons = 1
 numOrbitals        = 3
 sphereRadius       = 1.0
-particleMass       = 1e-1
+particleMass       = 1e+2
 
-embeddingDim    = 128
-numOrbitalParams = 32
-useCuda         = False
+embeddingDim     = 256
+numOrbitalParams = 64
+numPfaffians     = 4
+useCuda          = False
 
 phi = np.linspace(0, np.pi, nPhi)
 theta = np.linspace(0, 2 * np.pi, nTheta)
@@ -38,7 +39,7 @@ torchInputLocations = torch.cat([
     for p in phi]) 
 for t in theta])
 
-waveNetwork = WaveFunction.MultiElectronWaveFunction(numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim, numOrbitalParams)
+waveNetwork = WaveFunction.MultiElectronWaveFunction(numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim, numOrbitalParams, numPfaffians)
 print(f"Created wave function Pfaffians with {sum(p.numel() for p in waveNetwork.parameters())} parameters in total.")
 strMass = '%.2E' % Decimal(particleMass)
 waveNetwork.load_state_dict(torch.load(f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}.pth"))

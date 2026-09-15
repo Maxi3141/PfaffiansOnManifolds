@@ -5,6 +5,8 @@ from nn import WaveFunction
 
 #If not stated stated otherwise, "electronLocations" always has dimensions [BATCH_SIZE, NUMBER_OF_ELECTRONS, 3]
 
+#TODO: Update all the old calls to WaveFunction.getLogGradient to the new format where it returns list[torch.Tensor] with each tensor being batched.
+
 def getProjectionMatrices(electronLocations: torch.Tensor):
     #A projection matrix at point p with normal vector n is defined as P = I - nn^T.
     normals = torch.nn.functional.normalize(electronLocations, p=2, dim=2)
@@ -46,16 +48,19 @@ def estimateExpectedLocalEnergy(waveFunction: WaveFunction.MultiElectronWaveFunc
     return torch.sum(computeLocalEnergy(waveFunction, electronLocations, waveFunction.sphereRadius, waveFunction.particleMass)).item() / numSamples
 
 def estimateVMCGradient(waveFunction: WaveFunction.MultiElectronWaveFunction, batchSize: int = 16, presampledElectrons: torch.Tensor = None):
+    raise Exception("\"estimateVMCGradient\" should not have been called. Use Spring-Optimizer from LinAlgBasics directly instead.")
     if presampledElectrons == None:
-        expectedLocalEnergy = estimateExpectedLocalEnergy(waveFunction, batchSize)
+        #expectedLocalEnergy = estimateExpectedLocalEnergy(waveFunction, batchSize)
         electronLocations = StatBasics.sampleFromWaveFunction(waveFunction, batchSize, waveFunction.numElectrons, waveFunction.sphereRadius)
     else:
-        expectedLocalEnergy = estimateExpectedLocalEnergy(waveFunction, batchSize, presampledElectrons)
+        #expectedLocalEnergy = estimateExpectedLocalEnergy(waveFunction, batchSize, presampledElectrons)
         electronLocations = presampledElectrons
     measuredLocalEnergy = computeLocalEnergy(waveFunction, electronLocations, waveFunction.sphereRadius, waveFunction.particleMass)
+    expectedLocalEnergy = torch.sum(measuredLocalEnergy) / batchSize
+    
     localEnergyDiff = measuredLocalEnergy - expectedLocalEnergy
     networkLogGradients = waveFunction.getLogGradient(electronLocations)
-    vmcGradient = [torch.zeros_like(subParameter) for subParameter in networkLogGradients[0]]
+    vmcGradient = [torch.zeros(subParameter) for subParameter in networkLogGradients[0]]
     for subParameterIndex in range(len(networkLogGradients[0])):
         for batchIndex in range(batchSize):
             vmcGradient[subParameterIndex] += localEnergyDiff[batchIndex] * networkLogGradients[batchIndex][subParameterIndex] / float(batchSize)
@@ -70,15 +75,15 @@ def getSurfaceLaplacianOverFunction(waveFunction: torch.nn.Module, electronLocat
             return torch.log(torch.abs(torch.func.functional_call(waveFunction, waveNetworkParams, locations.unsqueeze(0))) + logStabilizer)
 
     callableLogGradient = torch.func.jacfwd(callableLogWaveFunction)
-    embeddedLogGradients = torch.func.vmap(callableLogGradient)(electronLocations).squeeze(dim=(1,2))
+    embeddedLogGradients = torch.func.vmap(callableLogGradient, randomness='different')(electronLocations).squeeze(dim=(1,2))
 
     def extractRelevantDerivatives(fullHessian: torch.Tensor):
         helperIndex = torch.arange(fullHessian.shape[0])
         return fullHessian[helperIndex,:,helperIndex,:]
     
     callableLogHessian = torch.func.jacfwd(torch.func.jacfwd(callableLogWaveFunction))
-    completeLogHessian = torch.func.vmap(callableLogHessian)(electronLocations).squeeze(dim=(1,2))
-    embeddedLogHessians = torch.func.vmap(extractRelevantDerivatives)(completeLogHessian)
+    completeLogHessian = torch.func.vmap(callableLogHessian, randomness="different")(electronLocations).squeeze(dim=(1,2))
+    embeddedLogHessians = torch.func.vmap(extractRelevantDerivatives, randomness="different")(completeLogHessian)
 
     hessianDivFunction = embeddedLogHessians + torch.matmul(embeddedLogGradients.unsqueeze(-1), embeddedLogGradients.unsqueeze(-2))
 
@@ -100,7 +105,7 @@ def getSurfaceGradient(waveFunction: torch.nn.Module, electronLocations: torch.T
             return torch.func.functional_call(waveFunction, waveNetworkParams, locations.unsqueeze(0))
 
     callableGradient = torch.func.jacfwd(callableWaveFunction)
-    embeddedGradients = torch.func.vmap(callableGradient)(electronLocations).squeeze(dim=(1,2))
+    embeddedGradients = torch.func.vmap(callableGradient, randomness="different")(electronLocations).squeeze(dim=(1,2))
     surfaceGradients = embeddedGradients - torch.matmul(normals.unsqueeze(-2), embeddedGradients.unsqueeze(-1)).squeeze(-1) * normals
     return surfaceGradients
     
@@ -121,13 +126,13 @@ def getSurfaceLaplacian(waveFunction: torch.nn.Module, electronLocations: torch.
 
     #Using "torch.func.jacrev(torch.func.jacrev(...))" instead of "torch.func.hessian(...)" since the latter throws a weird deprecation warning.
     callableHessian = torch.func.jacfwd(torch.func.jacfwd(callableWaveFunction))
-    completeHessian = torch.func.vmap(callableHessian)(electronLocations).squeeze(dim=(1,2))
-    embeddedHessians = torch.func.vmap(extractRelevantDerivatives)(completeHessian)
+    completeHessian = torch.func.vmap(callableHessian, randomness="different")(electronLocations).squeeze(dim=(1,2))
+    embeddedHessians = torch.func.vmap(extractRelevantDerivatives, randomness="different")(completeHessian)
 
     embeddedLaplacians = torch.sum(torch.diagonal(embeddedHessians, offset=0, dim1=-1, dim2=-2), -1).squeeze(-1)
     normalCorrection = torch.matmul(torch.matmul(normals.unsqueeze(-2), embeddedHessians), normals.unsqueeze(-1)).squeeze()
     callableGradient = torch.func.jacfwd(callableWaveFunction)
-    embeddedGradients = torch.func.vmap(callableGradient)(electronLocations).squeeze(dim=(1,2))
+    embeddedGradients = torch.func.vmap(callableGradient, randomness="different")(electronLocations).squeeze(dim=(1,2))
     curvatureCorrection = 2. / sphereRadius * torch.matmul(normals.unsqueeze(-2), embeddedGradients.unsqueeze(-1)).squeeze()
 
     result = embeddedLaplacians - normalCorrection - curvatureCorrection
