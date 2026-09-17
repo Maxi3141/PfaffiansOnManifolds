@@ -149,6 +149,13 @@ class ModeComputationTest(unittest.TestCase):
         modeError = torch.linalg.norm(modeDiscrepancy)
         self.assertAlmostEqual(modeError.item(), 0.0, places=5)
 
+class ElectroStaticForcesTest(unittest.TestCase):
+    def testElectroStaticForces(self):
+        electronLocations = torch.Tensor([[[1., 0., 0.], [0., 1., 0.], [-1., 0., 0.], [0., 0., 1.]]])
+        forcesComputed = phys.getElectronPairForces(electronLocations).squeeze()
+        forcesExact = torch.tensor([1.0, 1.5, 1.0, 1.5])
+        self.assertAlmostEqual(torch.linalg.norm(forcesComputed - forcesExact).item(), 0.0, 6)
+
 if __name__ == "__main__":
     print("---Running tests for linear algebra, surface differential operators and sampling---")
     print("Warning: The test for sampling is non-deterministic and can fail by design when a statistical type I error for H0 = \"Implementation works\" occurs!")
