@@ -19,7 +19,8 @@ def getElectronPairForces(electronLocations: torch.Tensor):
     distanceMatrix = (expandedElectronLocations - torch.transpose(expandedElectronLocations, dim0=1, dim1=2)).unsqueeze(-1)
     projectionMatrices = getProjectionMatrices(electronLocations).unsqueeze(2).expand(batchSize, numElectrons, numElectrons, 3, 3)
     projectedDistancesMatrix = torch.linalg.norm(torch.matmul(projectionMatrices, distanceMatrix), ord=2, dim=3)
-    forceMatrix = (1. / projectedDistancesMatrix).squeeze(-1)
+    embeddedDistancesMatrix = torch.linalg.norm(distanceMatrix, ord=2, dim=3)
+    forceMatrix = (projectedDistancesMatrix / torch.pow(embeddedDistancesMatrix, 2.)).squeeze(-1)
     helperIndex = torch.arange(numElectrons)
     forceMatrix[:, helperIndex, helperIndex] = 0.
     summedForces = torch.sum(forceMatrix, dim=-1)
@@ -142,18 +143,23 @@ def getSurfaceLaplacian(waveFunction: torch.nn.Module, electronLocations: torch.
 #the average energy over all batches, the lowest energy of any batch and the highest energy of any batch in that order in a 3-list.
 def getAvgLowHighThomsonEnergy(electronLocations: torch.Tensor):
     batchSize = electronLocations.shape[0]
+    batchEnergies = getThomsonEnergy(electronLocations)
+    highEnergy = torch.max(batchEnergies).item()
+    lowEnergy = torch.min(batchEnergies).item()
+    avgEnergy = torch.sum(batchEnergies).item() / float(batchSize)
+    medEnergy = torch.median(batchEnergies).item()
+    return [avgEnergy, lowEnergy, highEnergy, medEnergy]
+
+def getThomsonEnergy(electronLocations: torch.Tensor):
+    batchSize = electronLocations.shape[0]
     numElectrons = electronLocations.shape[1]
     expandedElectronLocations = electronLocations.unsqueeze(2).expand(batchSize, numElectrons, numElectrons, 3).clone()
     distanceMatrix = torch.linalg.norm(expandedElectronLocations - torch.transpose(expandedElectronLocations, dim0=1, dim1=2), ord=2, dim=3)
-    #print("distanceMatrix =", distanceMatrix)
     energyMatrix = (1. / distanceMatrix)
     helperIndex = torch.arange(numElectrons)
     energyMatrix[:, helperIndex, helperIndex] = 0.
     batchEnergies = torch.sum(energyMatrix, dim=(1,2)) / 2.
-    highEnergy = torch.max(batchEnergies).item()
-    lowEnergy = torch.min(batchEnergies).item()
-    avgEnergy = torch.sum(batchEnergies).item() / float(batchSize)
-    return [avgEnergy, lowEnergy, highEnergy]
+    return batchEnergies
 
 def getAvgLowHighLocalEnergy(waveFunction: WaveFunction.MultiElectronWaveFunction, electronLocations: torch.Tensor, sphereRadius: float, particleMass: float = 1.0):
     batchSize = electronLocations.shape[0]

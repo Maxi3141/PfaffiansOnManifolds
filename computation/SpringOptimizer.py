@@ -27,6 +27,7 @@ def getSpringOptimizerGradient(waveFunction:       WaveFunction.MultiElectronWav
     invTermL64, _ = torch.linalg.cholesky_ex(invTerm64, check_errors=False)
 
     if invTermL64.diagonal()[torch.where(invTermL64.diagonal() <= 1e-10)].shape[0] != 0:
+        print(f"WARNING: Spring optimizer could not invert matrix.")
         return torch.zeros(1).detach(), False
 
     invTerm64    = torch.cholesky_inverse(invTermL64)
@@ -34,5 +35,9 @@ def getSpringOptimizerGradient(waveFunction:       WaveFunction.MultiElectronWav
     energyTerm   = epsEBar - momentum * torch.matmul(bigOBar, prevSpringGradient)
     momentumTerm = momentum * prevSpringGradient
     result = torch.transpose(bigOBar, dim0=0, dim1=1) @ invTerm @ energyTerm + momentumTerm
+
+    if result[torch.where(torch.isnan(result))].shape[0] != 0:
+        print(f"WARNING: Spring optimizer somehow came up with tensor containing NaN. Skipping this optimization step.")
+        return torch.zeros(1).detach(), False
 
     return result.detach(), True

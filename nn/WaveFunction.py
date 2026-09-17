@@ -110,9 +110,9 @@ class MultiPfaffianNetwork(torch.nn.Module):
         orbitAOrbit = torch.matmul(torch.matmul(orbitElecPairing, A), torch.transpose(orbitElecPairing, dim0=-2, dim1=-1))
 
         pfOrbitAOrbit = laBasics.getPfaffian(orbitAOrbit)
-        pfA           = laBasics.getPfaffian(A)
+        #pfA           = laBasics.getPfaffian(A)
 
-        return pfOrbitAOrbit / pfA
+        return pfOrbitAOrbit #/ pfA
 
     #TODO: The entire structure of this will have to be reworked once more complicated manifolds with multiple charts are supported.
     def forwardA(self, electronEmbeddings, orbitalParams):

@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import math
 
 def sampleUniformOnSphereNumpy(r = 1):
     theta = 2 * np.pi * np.random.uniform()
@@ -64,8 +65,18 @@ def computeModeOfWaveFunction(waveFunction, batchSize, numElectrons, sphereRadiu
         surfaceProjections = torch.eye(3).repeat(electronPositions.shape[0], electronPositions.shape[1], 1, 1) - torch.matmul(normals.unsqueeze(-1), normals.unsqueeze(-2))
         surfaceProbGradients = torch.matmul(surfaceProjections, probGradient.unsqueeze(-1)).squeeze(-1)
 
-        electronPositions = electronPositions + convergenceMultiplier * surfaceProbGradients
+        convergenceScaling = convergenceMultiplier# * math.exp(float(-i) / 10.)
+        electronPositions = electronPositions + convergenceScaling * surfaceProbGradients
         electronPositions = torch.nn.functional.normalize(electronPositions, p=2., dim=-1)
         #TODO: Somehow incorporate the norm of "surfaceProbGradients" to determine whether convergence has been reached.
 
-    return electronPositions
+    def sortingCriterion(sortObject):
+        return sortObject[1]
+
+    electronProbs = torch.pow(waveFunction(electronPositions), 2.)
+    result = list(zip(electronPositions, electronProbs))
+    result.sort(key=sortingCriterion)
+    locResult  = torch.stack([res[0] for res in result])
+    probResult = torch.stack([res[1] for res in result])
+
+    return locResult, probResult

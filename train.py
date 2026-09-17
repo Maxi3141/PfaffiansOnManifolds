@@ -10,19 +10,20 @@ def main():
     numSpinUpElectrons = 2
     numOrbitals        = 6
     sphereRadius       = 1.0
-    particleMass       = 1e+2
+    particleMass       = 1e+0
 
-    batchSize          = 8
+    batchSize          = 16
     embeddingDim       = 256
     numOrbitalParams   = 64
     numPfaffians       = 4
 
     resumeTraining         = True
     computeEnergyInterval  = 10
-    computeThomsonInterval = 1000
-    computeModeInterval    = 1000
-    maxTrainingIter        = 200
+    computeThomsonInterval = 20
+    computeModeInterval    = 100
+    maxTrainingIter        = 3001
     saveInterval           = 10
+    permaSaveInterval      = 1000
     useCuda                = False
     optimizerMomentum      = 0.99
     optimizerDamping       = 0.001
@@ -53,7 +54,7 @@ def main():
 
         electronLocations = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
 
-        learningRate = 0.08 * (1.0 + float(iter) * 1e-4)**-1
+        learningRate = 0.08 * (1.0 + float(iter+2000) * 1e-4)**-1
         springGradient, springSuccess = SpringOptimizer.getSpringOptimizerGradient(waveNetwork, electronLocations, prevGradient, optimizerDamping, optimizerMomentum)
         if not springSuccess:
             numSkippedTrainingIters += 1
@@ -69,6 +70,10 @@ def main():
             torch.save(waveNetwork.state_dict(), f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}.pth")
             print(f"   -> Saved weights.")
 
+        if iter % permaSaveInterval == 0 and iter != 0:
+            torch.save(waveNetwork.state_dict(), f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}_{iter}.pth")
+            print(f"   -> Saved weights for current iteration.")
+
         if iter % computeEnergyInterval == 0:
             localEnergyData = Physics.getAvgLowHighLocalEnergy(waveNetwork, electronLocations, sphereRadius, particleMass)
             localEnergyHistory.append(localEnergyData)
@@ -80,7 +85,7 @@ def main():
             print(f"   -> Thomson energy in batch of {batchSize}: Low = {thomsonEnergyData[1]} ; Avg = {thomsonEnergyData[0]} ; High = {thomsonEnergyData[2]}")
 
         if iter % computeModeInterval == 0:
-            modePositions = StatBasics.computeModeOfWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
+            modePositions, _ = StatBasics.computeModeOfWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
             modeThomsonEnergy = Physics.getAvgLowHighThomsonEnergy(modePositions)
             print(f"   -> Thomson energy of modes: Low = {modeThomsonEnergy[1]} ; Avg = {modeThomsonEnergy[0]} ; High = {modeThomsonEnergy[2]}")
 
