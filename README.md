@@ -1,13 +1,13 @@
 # Pfaffians on Manifolds
 
-Be it for mathematical theory, quasi-particles in graphene, or the fractional quantum Hall effect, the analysis of two-dimensional electrons is of great interest for mathematics and physics. This project uses the "Neural Pfaffian" architcture developed by Gao & Guennemann in "Neural Pfaffians: Solving Many Many-Electron Schroedinger Equations" (Neural Information Processing Systems (NeurIPS), 2024) and combines it with the theory presented in "Quantum mechanics of a constrained particle" (R.C.T. da Costa, 1981 in: Physical Review A, Volume 23, Number 4) to provide a modern and flexible approach to compute the lowest energy state of $N_e$ electrons constrained to a 2-sphere embedded in 3D space.
+Be it for mathematical theory, quasi-particles in graphene, or the fractional quantum Hall effect, the analysis of two-dimensional electrons is of great interest for mathematics and physics. This project uses the "Neural Pfaffian" architecture developed by Gao & Guennemann in "Neural Pfaffians: Solving Many Many-Electron Schroedinger Equations" (Neural Information Processing Systems (NeurIPS), 2024) and combines it with the theory presented in "Quantum mechanics of a constrained particle" (R.C.T. da Costa, 1981 in: Physical Review A, Volume 23, Number 4) to provide a modern and flexible approach to compute the lowest energy state of $N_e$ electrons constrained to a 2-sphere embedded in 3D space.
 
 ## Installation, Training, and Evaluation
 
-For installation, clone the repository and install `numpy` and `pytorch` in its environment. Furthermore, some scripts for visualiztation require `matplotlib`. Everything was developed and testet under Windows using `numpy==2.4.6` and `torch==2.12.0+cu132` but MacOS and Linux and the newest versions of `torch` and `numpy` should work aswell.
+For installation, clone the repository and install `numpy` and `pytorch` in its environment. Furthermore, some scripts for visualization require `matplotlib`. Everything was developed and testet under Windows using `numpy==2.4.6` and `torch==2.12.0+cu132` but MacOS and Linux and the newest versions of `torch` and `numpy` should work aswell.
 
 To train a new model, adjust the parameters in `train.py` and then run the standard `python train.py` from the command line.   
-In order to evaluate an already existing model, use the `evaluate.py` script. It additionaly contains the "mode" parameter to either evaluate the computed wave function at given locations, to sample from the wave function, to compute the modes of the wave function, or to benchmark the model for debugging.  
+In order to evaluate an already existing model, use the `evaluate.py` script. It additionally contains the "mode" parameter to either evaluate the computed wave function at given locations, to sample from the wave function, to compute the modes of the wave function, or to benchmark the model for debugging.  
 Call `playground/Tests.py` to run unit tests.
 
 The results that can be obtained this way are shown below.
@@ -47,8 +47,8 @@ The implementation follows the overall structure of the original Neural Pfaffian
 Expressions of type $\nabla _\Gamma^2 u / u$ are evaluated using logarithmic differentiation with additional consideration of the curvature terms:
 $$\frac{\nabla _\Gamma^2 u}{u}=\nabla^2\log\vert\tilde u\vert + \Vert\nabla\vert\tilde u\vert\Vert^2-n^T(D^2\log\vert\tilde u\vert+(\nabla\log\vert\tilde u\tilde)(\nabla\log\vert\tilde u\tilde)^T)n-\kappa(n\cdot\nabla\log\vert\tilde u\vert).$$  
 Since the definition of the surface differential operators relies on the fact the the restriction $tilde u\vert _\Gamma=u$ is smooth, one must always ensure that all used activation functions are differentiable to a high enough degree.  
-The Pfaffian network is a composition of continuous functions and thus itself continuous. Futhermore, unlike the Euclidean space $\mathbb R^3$, the sphere is compact, so that $\phi$ takes on a finite maximum somewhere on the domain and the integral $\int\phi^2 dx$ is always naturally bounded. Thus, no envelope function is needed in this setting.  
-In the original version of Neural Pfaffians the geometry of the space is given by embeddings of the molecule structure. Here, there is no molecule structure. The geometry is only accessible implicitly by assuming that one can sample electron positions from pobability distributions on the manifold. `GeometryProvider.py` takes in this positional data and provides embeddings that can be used instead.
+The Pfaffian network is a composition of continuous functions and thus itself continuous. Furthermore, unlike the Euclidean space $\mathbb R^3$, the sphere is compact, so that $\phi$ takes on a finite maximum somewhere on the domain and the integral $\int\phi^2 dx$ is always naturally bounded. Thus, no envelope function is needed in this setting.  
+In the original version of Neural Pfaffians the geometry of the space is given by embeddings of the molecule structure. Here, there is no molecule structure. The geometry is only accessible implicitly by assuming that one can sample electron positions from probability distributions on the manifold. `GeometryProvider.py` takes in this positional data and provides embeddings that can be used instead.
 
 ## Results
 
@@ -57,7 +57,7 @@ Measuring the quality of the results is not trivial since physical analogues to 
 For two electrons (1 Up, 1 Down, 3 Orbitals) we get the following energy decay during the training process:
 <img width="640" height="480" alt="AvgEnergy_Moving10Average_-1_10_Clip" src="https://github.com/user-attachments/assets/7fce5cb5-070d-463c-b99f-497b9822409b" />
 
-The average Thomson energy of the local maximastarts close to the energy one would expect for uniformly distributed points (Red line, 1.0) but develops towards the theoretically best possible energy (Green line, 0.5):
+The average Thomson energy of the local maxima starts close to the energy one would expect for uniformly distributed points (Red line, 1.0) but develops towards the theoretically best possible energy (Green line, 0.5):
 <img width="640" height="480" alt="ModeThomEng_Moving3Avg" src="https://github.com/user-attachments/assets/8c122b72-04f1-4668-a0b0-627c83c4ca7a" />
 
 Furthermore, for the to electron case we can fix one electron (here at `(0,-1, 0)`) and plot the marginal distribution of the other electron which clearly pools around the opposite pole at `(0,1,0)`:
@@ -70,7 +70,7 @@ For the more interesting four-electron case (2 Up, 2 Down, 6 Orbitals) we get th
 <img width="640" height="480" alt="ModesThomsonEnergies_Moving3Average" src="https://github.com/user-attachments/assets/9a6442ec-8e42-4812-9a0e-00da80348102" />
 
 ## Future
-Future work should include obvious improvments like the support for odd numbers of electrons or a more stable implementation of the Spring optimizer. In the long run, two options appear interesting:
+Future work should include obvious improvements like the support for odd numbers of electrons or a more stable implementation of the Spring optimizer. In the long run, two options appear interesting:
 
 1. Support for more general shapes: The sphere is to symmetric for the surface potential $V_\Gamma$ to be interesting. Also, more complex manifolds which can only be parametrized piece-wise could make use of the reusability of orbitals intrinsic to neural Pfaffians: Instead of the orbitals being reused on a per nucleus basis one could reuse the orbitals for local parametrized patch of the manifold.
 
