@@ -8,7 +8,7 @@ For installation, clone the repository and install `numpy` and `pytorch` in its 
 
 To train a new model, adjust the parameters in `train.py` and then run the standard `python train.py` from the command line.   
 In order to evaluate an already existing model, use the `evaluate.py` script. It additionally contains the "mode" parameter to either evaluate the computed wave function at given locations, to sample from the wave function, to compute the modes of the wave function, or to benchmark the model for debugging.  
-Call `playground/Tests.py` to run unit tests.
+Call `misc/Tests.py` to run unit tests.
 
 The results that can be obtained this way are shown below.
 

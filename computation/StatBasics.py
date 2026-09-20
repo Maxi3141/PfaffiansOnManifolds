@@ -73,6 +73,5 @@ def computeModeOfWaveFunction(waveFunction, batchSize, numElectrons, sphereRadiu
     if filterNANs:
         nanMask = torch.any(electronPositions.isnan(), dim=(1,2))
         electronPositions = electronPositions[~nanMask]
-        print(electronPositions.shape)
 
     return electronPositions
