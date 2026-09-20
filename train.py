@@ -17,19 +17,22 @@ def main():
     numOrbitalParams   = 64
     numPfaffians       = 4
 
-    resumeTraining         = True
+    resumeTraining         = False
     computeEnergyInterval  = 10
     computeThomsonInterval = 20
     computeModeInterval    = 100
     maxTrainingIter        = 3001
     saveInterval           = 10
-    permaSaveInterval      = 1000
-    useCuda                = False
+    permaSaveInterval      = 500
+    useCuda                = True
     optimizerMomentum      = 0.99
     optimizerDamping       = 0.001
 
     print("--- NeuralPfaffians on Manifolds ---")
     print(f"Simulating {numElectrons} electrons ({numSpinUpElectrons} spin up, {(numElectrons - numSpinUpElectrons)}, spin down) in {numOrbitals} orbitals.")
+
+    if numElectrons % 2 != 0:
+        raise Exception("Odd number of electrons not yet supported!")
 
     if useCuda:
         torch.set_default_device("cuda")
@@ -41,9 +44,9 @@ def main():
     if resumeTraining:
         waveNetwork.load_state_dict(torch.load(f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}.pth"))
 
-    #TODO: Do something with the energy histories.
     localEnergyHistory   = []
     thomsonEnergyHistory = []
+    modeHistory          = []
 
     numSkippedTrainingIters = 0
 
@@ -54,11 +57,11 @@ def main():
 
         electronLocations = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
 
-        learningRate = 0.08 * (1.0 + float(iter+2000) * 1e-4)**-1
+        learningRate = 0.08 * (1.0 + float(iter) * 1e-4)**-1
         springGradient, springSuccess = SpringOptimizer.getSpringOptimizerGradient(waveNetwork, electronLocations, prevGradient, optimizerDamping, optimizerMomentum)
         if not springSuccess:
             numSkippedTrainingIters += 1
-            print(f" Optimizer step computation failed. Matrix was not positive-definite. {numSkippedTrainingIters} iterations were now skipped in total.")
+            print(f" Optimizer step computation failed. {numSkippedTrainingIters} iterations were now skipped in total.")
             continue
 
         torch.nn.utils.vector_to_parameters(springGradient, tensorFormattedGradient)
@@ -85,12 +88,19 @@ def main():
             print(f"   -> Thomson energy in batch of {batchSize}: Low = {thomsonEnergyData[1]} ; Avg = {thomsonEnergyData[0]} ; High = {thomsonEnergyData[2]}")
 
         if iter % computeModeInterval == 0:
-            modePositions, _ = StatBasics.computeModeOfWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
+            modePositions = StatBasics.computeModeOfWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
             modeThomsonEnergy = Physics.getAvgLowHighThomsonEnergy(modePositions)
+            modeHistory.append(modeThomsonEnergy)
             print(f"   -> Thomson energy of modes: Low = {modeThomsonEnergy[1]} ; Avg = {modeThomsonEnergy[0]} ; High = {modeThomsonEnergy[2]}")
 
-    print("Avg. energies:")
-    print([record[0] for record in localEnergyHistory])
+    with open("saves/lastSessionData.log", "w") as f:
+        f.write(f"numElectrons = {numElectrons} , up = {numSpinUpElectrons} , numOrbitals = {numOrbitals} , batchSize = {batchSize}")
+        f.write("Average energy history:")
+        f.write([record[0] for record in localEnergyHistory])
+        f.write("Average Thomson energy history:")
+        f.write([record[0] for record in thomsonEnergyHistory])
+        f.write("Average Thomson energy of modes history:")
+        f.write([record[0] for record in modeHistory])
 
 if __name__=="__main__":
     main()

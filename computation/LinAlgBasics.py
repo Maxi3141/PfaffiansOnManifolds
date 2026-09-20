@@ -47,7 +47,6 @@ def tridiagonalizeSkewSymmetricMatrix(A: torch.Tensor):
         tridiagMat = torch.matmul(torch.matmul(Q, tridiagMat), torch.transpose(Q, dim0=-2, dim1=-1))
     return tridiagMat
 
-#Note: This function treats the last two dimensions as matrices that are being transformed.
 def getPfaffian(A: torch.Tensor):
     matSize = A.shape[-1]
     if matSize % 2 == 1:

@@ -35,7 +35,6 @@ class MultiElectronWaveFunction(torch.nn.Module):
         electronEmbeddings = self.embeddingNetwork(x, spinUpIndices, spinDownIndices)
         orbitalParams = self.orbitalParametrizer(x)
 
-        #TODO: Add vmap stuff to the "forwards" below
         jastrowScalings = self.forwardJastrowScalings(electronEmbeddings, x)
         pfaffians = torch.transpose(self.pfaffiansNetwork(electronEmbeddings, orbitalParams), dim0=0, dim1=1)
         result = torch.exp(jastrowScalings) * self.pfaffianScalings(pfaffians)

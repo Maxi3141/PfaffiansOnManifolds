@@ -3,7 +3,7 @@
     "numSpinUpElectrons": 2,
     "numOrbitals": 6,
     "sphereRadius": 1.0,
-    "particleMass": 0.1,
+    "particleMass": 100.0,
     "batchSize": 8,
     "embeddingDim": 256,
     "numOrbitalParams": 64,

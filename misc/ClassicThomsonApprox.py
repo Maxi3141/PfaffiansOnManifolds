@@ -4,11 +4,11 @@ from mpl_toolkits.mplot3d import Axes3D
 from computation import StatBasics as stats
 import numpy as np
 
-n_points = 128
+n_points = 4
 point_forces = []
 point_positions = []
 
-num_timesteps = 2000
+num_timesteps = 200
 
 force_coeff = 1
 
@@ -51,6 +51,10 @@ for timeIndex in range(num_timesteps):
             total_energy += 1 / r
     
     print("Energy after", timeIndex, "time steps:", total_energy)
+
+print("Points are located at:")
+for loc in point_positions:
+    print(f"[{loc[0]}, {loc[1]}, {loc[2]}]")
 
 visual_points_x = []
 visual_points_y = []

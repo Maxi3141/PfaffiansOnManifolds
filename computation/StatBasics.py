@@ -21,7 +21,6 @@ def sampleUniformOnSphere(batchSize, numElectrons, r = 1.):
 # Generates a proposal for new electron positions by moving into a random direction (uniform) by a random distance (scaled chi distribution)
 def generateMetropolisHastingsProposal(currentElectronPositions, sphereRadius):
     distanceScaling = 0.25
-    #unitPositions = currentElectronPositions / torch.linalg.norm(currentElectronPositions, dim=-1)
     unitPositions = torch.nn.functional.normalize(currentElectronPositions, p=2, dim=-1)
     directionVectors = torch.randn(currentElectronPositions.shape)
     tangentialDirectionVectors = directionVectors - torch.matmul(directionVectors.unsqueeze(-2), unitPositions.unsqueeze(-1)).squeeze(-1) * unitPositions
@@ -50,33 +49,30 @@ def sampleFromWaveFunction(waveFunction, batchSize, numElectrons, sphereRadius, 
         electronPositions = conductSingleMetropolisHastingsStep(electronPositions, waveFunction, sphereRadius)
     return electronPositions
 
-def computeModeOfWaveFunction(waveFunction, batchSize, numElectrons, sphereRadius, maxIter = 64, convergenceMultiplier: float = 0.1):
+def computeModeOfWaveFunction(waveFunction, batchSize, numElectrons, sphereRadius, maxIter = 64, convergenceMultiplier: float = 0.1, filterNANs: bool = True):
     electronPositions = sampleUniformOnSphere(batchSize, numElectrons, sphereRadius)
     waveNetworkParams = dict(waveFunction.named_parameters())
 
     def callableProbabilityFunction(elecPos):
         return torch.pow(torch.func.functional_call(waveFunction, waveNetworkParams, elecPos.unsqueeze(0)), 2.)
 
-    for i in range(maxIter):
+    for _ in range(maxIter):
         probGradient = torch.vmap(torch.func.jacfwd(callableProbabilityFunction))(electronPositions).detach()
         probGradient = probGradient.squeeze(dim=(1,2))
 
         normals = torch.nn.functional.normalize(electronPositions, p=2, dim=-1)
         surfaceProjections = torch.eye(3).repeat(electronPositions.shape[0], electronPositions.shape[1], 1, 1) - torch.matmul(normals.unsqueeze(-1), normals.unsqueeze(-2))
+        #surfaceProbGradients = torch.matmul(surfaceProjections, torch.clamp(probGradient, min=-1e-3, max=1e-3).unsqueeze(-1)).squeeze(-1)
         surfaceProbGradients = torch.matmul(surfaceProjections, probGradient.unsqueeze(-1)).squeeze(-1)
 
-        convergenceScaling = convergenceMultiplier# * math.exp(float(-i) / 10.)
+        convergenceScaling = convergenceMultiplier
         electronPositions = electronPositions + convergenceScaling * surfaceProbGradients
         electronPositions = torch.nn.functional.normalize(electronPositions, p=2., dim=-1)
         #TODO: Somehow incorporate the norm of "surfaceProbGradients" to determine whether convergence has been reached.
 
-    def sortingCriterion(sortObject):
-        return sortObject[1]
+    if filterNANs:
+        nanMask = torch.any(electronPositions.isnan(), dim=(1,2))
+        electronPositions = electronPositions[~nanMask]
+        print(electronPositions.shape)
 
-    electronProbs = torch.pow(waveFunction(electronPositions), 2.)
-    result = list(zip(electronPositions, electronProbs))
-    result.sort(key=sortingCriterion)
-    locResult  = torch.stack([res[0] for res in result])
-    probResult = torch.stack([res[1] for res in result])
-
-    return locResult, probResult
+    return electronPositions

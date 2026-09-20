@@ -10,7 +10,7 @@ def main():
     numSpinUpElectrons = 2
     numOrbitals        = 6
     sphereRadius       = 1.0
-    particleMass       = 1e+2
+    particleMass       = 1e+0
 
     embeddingDim     = 256
     numOrbitalParams = 64
@@ -30,11 +30,7 @@ def main():
     batchSize = 128
 
     #Only relevant when mode is set to "eval"
-    #unnormedEvaluationPoints = torch.tensor([[[1.0, 0.0, 0.0], [-1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0], [0.0, 0.0, -1.0]]])
-    
-    #unnormedEvaluationPoints = torch.tensor([[[-0.0753,  0.9267, -0.3681],[-0.5428, -0.3907,  0.7434],[-0.7392, -0.6146, -0.2754],[0.8889, -0.2052, -0.4095]]])
-    #unnormedEvaluationPoints = torch.tensor([[[-1.0, 0.01, 0.0], [-1.0, 0.0, 0.0]]])
-    unnormedEvaluationPoints = torch.randn(32, 4, 3)
+    unnormedEvaluationPoints = torch.randn(batchSize, 4, 3)
 
     print("--- NeuralPfaffians on Manifolds ---")
     print(f"Simulating {numElectrons} electrons ({numSpinUpElectrons} spin up, {(numElectrons - numSpinUpElectrons)}, spin down) in {numOrbitals} orbitals.")
@@ -42,6 +38,8 @@ def main():
 
     if mode != "eval" and mode != "sample" and mode != "mode" and mode != "benchmark":
         raise Exception("Parameter \"mode\" is invalid. Must be \"eval\", \"sample\", \"mode\" or \"benchmark\".")
+
+    print(f"Running mode \"{mode}\"...")
 
     if mode == eval:
         if len(unnormedEvaluationPoints.shape) != 3:
@@ -61,16 +59,18 @@ def main():
         print("Evaluated wave function. Result:")
         print(result)
     if mode == "sample":
-        result = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius, 64)
+        result = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius, 32)
         print(f"Sampled {numElectrons} electrons {batchSize} times. Result:")
         print(result)
         waveAtLocations = waveNetwork(result)
         print(f"... with wave function values of:")
         print(waveAtLocations)
+        sampleThomsonEnergy = Physics.getAvgLowHighThomsonEnergy(result)
+        print(f"Thomson energies over batch: Low = {sampleThomsonEnergy[1]} ; Avg = {sampleThomsonEnergy[0]} ; High = {sampleThomsonEnergy[2]} ; Median = {sampleThomsonEnergy[3]}")
     if mode == "mode":
-        result = StatBasics.computeModeOfWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius, 128, 1.0)
-        modeThomsonEnergy = Physics.getAvgLowHighThomsonEnergy(result)
-        print(f"Estimated mode of wave function. Thomson energies over batch: Low = {modeThomsonEnergy[1]} ; Avg = {modeThomsonEnergy[0]} ; High = {modeThomsonEnergy[2]}")
+        resultLocation = StatBasics.computeModeOfWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius, 32, 0.1)
+        modeThomsonEnergy = Physics.getAvgLowHighThomsonEnergy(resultLocation)
+        print(f"Estimated mode of wave function. Thomson energies over batch: Low = {modeThomsonEnergy[1]} ; Avg = {modeThomsonEnergy[0]} ; High = {modeThomsonEnergy[2]} ; Median = {modeThomsonEnergy[3]}")
     if mode == "benchmark":
         with torch.profiler.profile(
             activities=[

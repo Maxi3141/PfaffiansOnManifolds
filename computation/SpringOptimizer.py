@@ -2,8 +2,7 @@ import torch
 from computation import Physics
 from nn import WaveFunction
 
-#TODO: Invert the system below more elegantly. The matrix to invert can become non positive-definit and then everything breaks.
-#... skipping all the optimization steps where this happens is bad and should not happen with some future solution.
+#TODO: Invert the system below more elegantly. The matrix to invert can in rare cases become non positive-definite and then everything breaks.
 def getSpringOptimizerGradient(waveFunction:       WaveFunction.MultiElectronWaveFunction, 
                                electronLocations:  torch.Tensor, 
                                prevSpringGradient: list[torch.Tensor], 
@@ -15,7 +14,6 @@ def getSpringOptimizerGradient(waveFunction:       WaveFunction.MultiElectronWav
     currentRawGradient = torch.cat([torch.flatten(subTensor.unsqueeze(-1), start_dim=1) for subTensor in currentRawGradientTensors], dim=1)
     stabilizingHelper = torch.ones(batchSize, batchSize, dtype=torch.float64) / float(batchSize) 
 
-    #for subIndex, subParameterGradients in enumerate(currentRawGradient):
     bigO = 1. / float(batchSize)**0.5 * currentRawGradient
     epsE = -1. / float(batchSize)**0.5 * Physics.computeLocalEnergy(waveFunction, electronLocations, waveFunction.sphereRadius, waveFunction.particleMass)
 

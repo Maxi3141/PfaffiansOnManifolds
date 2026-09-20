@@ -25,7 +25,6 @@ def getElectronPairForces(electronLocations: torch.Tensor):
     forceMatrix[:, helperIndex, helperIndex] = 0.
     summedForces = torch.sum(forceMatrix, dim=-1)
     return summedForces
-#TODO: Add tests for this.
 
 def getSphereCurvatureTerm(batchSize: int, numElectrons: int, sphereRadius: float):
     #For the sphere: Mean curvature is M = 1/r and Gauss curvature is K = 1/r^2. So (M^2-K) = 0.

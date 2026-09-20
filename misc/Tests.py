@@ -2,7 +2,7 @@ import unittest
 import numpy as np
 import torch
 
-#TODO: Remove below
+#Hack to make this work on MacOS. TODO: Remove.
 import sys
 import os
 current_dir = os.path.dirname(os.path.abspath(__file__))
