@@ -24,7 +24,7 @@ def main():
     maxTrainingIter        = 3001
     saveInterval           = 10
     permaSaveInterval      = 500
-    useCuda                = True
+    useCuda                = False
     optimizerMomentum      = 0.99
     optimizerDamping       = 0.001
 
@@ -35,6 +35,7 @@ def main():
         raise Exception("Odd number of electrons not yet supported!")
 
     if useCuda:
+        print("WARNING: CUDA is not yet fully supported and results could be wrong!")
         torch.set_default_device("cuda")
 
     strMass = '%.2E' % Decimal(particleMass)
@@ -94,13 +95,14 @@ def main():
             print(f"   -> Thomson energy of modes: Low = {modeThomsonEnergy[1]} ; Avg = {modeThomsonEnergy[0]} ; High = {modeThomsonEnergy[2]}")
 
     with open("saves/lastSessionData.log", "w") as f:
-        f.write(f"numElectrons = {numElectrons} , up = {numSpinUpElectrons} , numOrbitals = {numOrbitals} , batchSize = {batchSize}")
-        f.write("Average energy history:")
-        f.write([record[0] for record in localEnergyHistory])
-        f.write("Average Thomson energy history:")
-        f.write([record[0] for record in thomsonEnergyHistory])
-        f.write("Average Thomson energy of modes history:")
-        f.write([record[0] for record in modeHistory])
+        f.write(f"numElectrons = {numElectrons} , up = {numSpinUpElectrons} , numOrbitals = {numOrbitals} , batchSize = {batchSize}\n")
+        f.write("Average energy history:\n")
+        f.write(" , ".join([str(record[0]) for record in localEnergyHistory]) + "\n")
+        f.write("Average Thomson energy history:\n")
+        f.write(" , ".join([str(record[0]) for record in thomsonEnergyHistory]) + "\n")
+        f.write("Average Thomson energy of modes history:\n")
+        f.write(" , ".join([str(record[0]) for record in modeHistory]) + "\n")
+        f.close()
 
 if __name__=="__main__":
     main()
