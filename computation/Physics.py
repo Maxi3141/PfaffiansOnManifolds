@@ -166,4 +166,5 @@ def getAvgLowHighLocalEnergy(waveFunction: WaveFunction.MultiElectronWaveFunctio
     highEnergy = torch.max(batchEnergies).item()
     lowEnergy = torch.min(batchEnergies).item()
     avgEnergy = torch.sum(batchEnergies).item() / float(batchSize)
-    return [avgEnergy, lowEnergy, highEnergy]
+    medEnergy = torch.median(batchEnergies).item()
+    return [avgEnergy, lowEnergy, highEnergy, medEnergy]

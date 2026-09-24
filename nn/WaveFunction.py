@@ -38,6 +38,7 @@ class MultiElectronWaveFunction(torch.nn.Module):
         jastrowScalings = self.forwardJastrowScalings(electronEmbeddings, x)
         pfaffians = torch.transpose(self.pfaffiansNetwork(electronEmbeddings, orbitalParams), dim0=0, dim1=1)
         result = torch.exp(jastrowScalings) * self.pfaffianScalings(pfaffians)
+
         return result
 
     def forwardJastrowScalings(self, electronEmbeddings, x):
@@ -54,8 +55,8 @@ class MultiElectronWaveFunction(torch.nn.Module):
         upDownPairs   = electronPairDistances[:, :self.numSpinUpElectrons, :][:, :, self.numSpinUpElectrons:]
         downUpPairs   = electronPairDistances[:, self.numSpinUpElectrons:, :][:, :, :self.numSpinUpElectrons]
         downDownPairs = electronPairDistances[:, self.numSpinUpElectrons:, :][:, :, self.numSpinUpElectrons:]
-        unscaledSameTerm = (torch.sum(upUpPairs + self.jastrowAlphaSame, dim=(1,2)) + torch.sum(downDownPairs + self.jastrowAlphaSame, dim=(1,2))).unsqueeze(1)
-        unscaledDiffTerm = (torch.sum(upDownPairs + self.jastrowAlphaDiff, dim=(1,2)) + torch.sum(downUpPairs + self.jastrowAlphaDiff, dim=(1,2))).unsqueeze(1)
+        unscaledSameTerm = (torch.sum(torch.clamp(1. / (upUpPairs + self.jastrowAlphaSame), -1e+3, 1e+3), dim=(1,2)) + torch.sum(torch.clamp(1. / (downDownPairs + self.jastrowAlphaSame), -1e+3, 1e+3), dim=(1,2))).unsqueeze(1)
+        unscaledDiffTerm = (torch.sum(torch.clamp(1. / (upDownPairs + self.jastrowAlphaDiff), -1e+3, 1e+3), dim=(1,2)) + torch.sum(torch.clamp(1. / (downUpPairs + self.jastrowAlphaDiff), -1e+3, 1e+3), dim=(1,2))).unsqueeze(1)
         scaledSameTerm = -0.25 * self.jastrowBetaSame * self.jastrowAlphaSame**2 * unscaledSameTerm
         scaledDiffTerm = -0.5 * self.jastrowBetaDiff * self.jastrowAlphaDiff**2 * unscaledDiffTerm
         
@@ -109,9 +110,9 @@ class MultiPfaffianNetwork(torch.nn.Module):
         orbitAOrbit = torch.matmul(torch.matmul(orbitElecPairing, A), torch.transpose(orbitElecPairing, dim0=-2, dim1=-1))
 
         pfOrbitAOrbit = laBasics.getPfaffian(orbitAOrbit)
-        #pfA           = laBasics.getPfaffian(A)
+        pfA           = laBasics.getPfaffian(A)
 
-        return pfOrbitAOrbit #/ pfA
+        return pfOrbitAOrbit / pfA
 
     #TODO: The entire structure of this will have to be reworked once more complicated manifolds with multiple charts are supported.
     def forwardA(self, electronEmbeddings, orbitalParams):

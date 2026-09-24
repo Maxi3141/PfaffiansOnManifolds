@@ -56,6 +56,8 @@ WARNING: To fully take advantage of the stabilizing effects of the Spring optimi
 
 Measuring the quality of the results is not trivial since physical analogues to compare to are not directly available. Instead, one can consider the Thomson problem which asks for the optimal distribution of electrons thought of as point charges on the sphere. For this solutions are available as long as the number of electrons stays low. If one now trains a neural Pfaffian on the sphere and then computes the modes / local maxima of the distribution, one can compare the Thomson energy of these maxima to the optimal Thomson energy and to the Thomson energies one would expect for points that are just uniformly distributed on the sphere.
 
+Note: The graphs below were generated using an older, less optimized training implementation. The newer pretrained pth-files in "saves" perform better and more stable but might output local energy results different to the ones shown here in terms of absolute value. The graphs will be updated soon. 
+
 For two electrons (1 Up, 1 Down, 3 Orbitals) we get the following energy decay during the training process:
 <img width="640" height="480" alt="AvgEnergy_Moving10Average_-1_10_Clip" src="https://github.com/user-attachments/assets/7fce5cb5-070d-463c-b99f-497b9822409b" />
 

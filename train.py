@@ -12,7 +12,7 @@ def main():
     sphereRadius       = 1.0
     particleMass       = 1e+0
 
-    batchSize          = 16
+    batchSize          = 64
     embeddingDim       = 256
     numOrbitalParams   = 64
     numPfaffians       = 4
@@ -21,10 +21,10 @@ def main():
     computeEnergyInterval  = 10
     computeThomsonInterval = 20
     computeModeInterval    = 100
-    maxTrainingIter        = 3001
+    maxTrainingIter        = 1001
     saveInterval           = 10
     permaSaveInterval      = 500
-    useCuda                = False
+    useCuda                = True
     optimizerMomentum      = 0.99
     optimizerDamping       = 0.001
 
@@ -53,7 +53,8 @@ def main():
 
     prevGradient = torch.zeros_like(torch.nn.utils.parameters_to_vector(waveNetwork.getLogGradient(torch.zeros(1, numElectrons, 3))))
     tensorFormattedGradient = [torch.zeros_like(subParam) for subParam in waveNetwork.parameters()]
-    for iter in range(maxTrainingIter):
+    iterStart = 0
+    for iter in range(iterStart, maxTrainingIter):
         print(f"iteration {iter}...")
 
         electronLocations = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)

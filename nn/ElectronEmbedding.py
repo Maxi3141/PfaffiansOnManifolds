@@ -6,7 +6,7 @@ class ElectronEmbeddingNetwork(torch.nn.Module):
         self.numMLPLayers = 4
         self.embeddingDim = embeddingDim
 
-        self.embActivation = torch.nn.functional.tanh
+        self.embActivation = torch.nn.functional.silu
 
         #ModuleLists with two elements have the module for same-spin pairs in the first slot and and the module for different-spin pairs in the second.
         self.linear0 = torch.nn.ModuleList([torch.nn.Linear(4, self.embeddingDim, bias=False) for _ in range(2)])
@@ -56,7 +56,7 @@ class ElectronEmbeddingNetwork(torch.nn.Module):
         distanceMatrix = self.getDistanceMatrixFromLocations(electronLocations)
         distancesNormMatrix = torch.linalg.norm(distanceMatrix, ord=2, dim=3)
         unscaledConcatMatrix = torch.cat((distanceMatrix, distancesNormMatrix.unsqueeze(-1)), -1)
-        scalings = (torch.log(distancesNormMatrix + 1) / distancesNormMatrix).unsqueeze(-1)
+        scalings = (torch.log(distancesNormMatrix + 1) / (distancesNormMatrix + 1e-6)).unsqueeze(-1)
         singularIndices = torch.arange(electronLocations.shape[1])
         scalings[:,singularIndices,singularIndices,:] = 0.
         return scalings * unscaledConcatMatrix
