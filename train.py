@@ -6,9 +6,9 @@ from computation import SpringOptimizer
 from decimal import Decimal
 
 def main():
-    numElectrons       = 4
-    numSpinUpElectrons = 2
-    numOrbitals        = 6
+    numElectrons       = 2
+    numSpinUpElectrons = 1
+    numOrbitals        = 3
     sphereRadius       = 1.0
     particleMass       = 1e+0
 
@@ -82,27 +82,33 @@ def main():
         if iter % computeEnergyInterval == 0:
             localEnergyData = Physics.getAvgLowHighLocalEnergy(waveNetwork, electronLocations, sphereRadius, particleMass)
             localEnergyHistory.append(localEnergyData)
-            print(f"   -> Local energy in batch of {batchSize}: Low = {localEnergyData[1]} ; Avg = {localEnergyData[0]} ; High = {localEnergyData[2]}")
+            print(f"   -> Local energy in batch of {batchSize}: Low = {localEnergyData[1]} ; Avg = {localEnergyData[0]} ; High = {localEnergyData[2]} ; Median = {localEnergyData[3]}")
 
         if iter % computeThomsonInterval == 0:
             thomsonEnergyData = Physics.getAvgLowHighThomsonEnergy(electronLocations)
             thomsonEnergyHistory.append(thomsonEnergyData)
-            print(f"   -> Thomson energy in batch of {batchSize}: Low = {thomsonEnergyData[1]} ; Avg = {thomsonEnergyData[0]} ; High = {thomsonEnergyData[2]}")
+            print(f"   -> Thomson energy in batch of {batchSize}: Low = {thomsonEnergyData[1]} ; Avg = {thomsonEnergyData[0]} ; High = {thomsonEnergyData[2]} ; Median = {thomsonEnergyData[3]}")
 
         if iter % computeModeInterval == 0:
             modePositions = StatBasics.computeModeOfWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
             modeThomsonEnergy = Physics.getAvgLowHighThomsonEnergy(modePositions)
             modeHistory.append(modeThomsonEnergy)
-            print(f"   -> Thomson energy of modes: Low = {modeThomsonEnergy[1]} ; Avg = {modeThomsonEnergy[0]} ; High = {modeThomsonEnergy[2]}")
+            print(f"   -> Thomson energy of modes: Low = {modeThomsonEnergy[1]} ; Avg = {modeThomsonEnergy[0]} ; High = {modeThomsonEnergy[2]} ; Median = {modeThomsonEnergy[3]}")
 
     with open("saves/lastSessionData.log", "w") as f:
         f.write(f"numElectrons = {numElectrons} , up = {numSpinUpElectrons} , numOrbitals = {numOrbitals} , batchSize = {batchSize}\n")
         f.write("Average energy history:\n")
         f.write(" , ".join([str(record[0]) for record in localEnergyHistory]) + "\n")
+        f.write("Median energy history:\n")
+        f.write(" , ".join([str(record[3]) for record in localEnergyHistory]) + "\n")
         f.write("Average Thomson energy history:\n")
         f.write(" , ".join([str(record[0]) for record in thomsonEnergyHistory]) + "\n")
+        f.write("Median Thomson energy history:\n")
+        f.write(" , ".join([str(record[3]) for record in thomsonEnergyHistory]) + "\n")
         f.write("Average Thomson energy of modes history:\n")
         f.write(" , ".join([str(record[0]) for record in modeHistory]) + "\n")
+        f.write("Median Thomson energy of modes history:\n")
+        f.write(" , ".join([str(record[3]) for record in modeHistory]) + "\n")
         f.close()
 
 if __name__=="__main__":

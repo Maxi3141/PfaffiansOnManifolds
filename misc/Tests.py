@@ -13,6 +13,8 @@ sys.path.append(parent_dir)
 from computation import LinAlgBasics as laBasics
 from computation import Physics as phys
 from computation import StatBasics
+from computation import SphereManifold
+from nn import WaveFunction
 
 class TestLinAlg(unittest.TestCase):
     def testPfaffian(self):
@@ -155,6 +157,88 @@ class ElectroStaticForcesTest(unittest.TestCase):
         forcesComputed = phys.getElectronPairForces(electronLocations).squeeze()
         forcesExact = torch.tensor([1.0, 1.5, 1.0, 1.5])
         self.assertAlmostEqual(torch.linalg.norm(forcesComputed - forcesExact).item(), 0.0, 6)
+
+class AntisymmetryTest(unittest.TestCase):
+    def testAntisymmetry(self):
+        numElectrons       = 4
+        numOrbitals        = 6
+        numSpinUpElectrons = 2
+        sphereRadius       = 2
+        particleMass       = 1.0
+        batchSize          = 16
+        embeddingDim       = 256
+        numOrbitalParams   = 64
+        numPfaffians       = 4
+
+        waveNetwork = WaveFunction.MultiElectronWaveFunction(numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim, numOrbitalParams, numPfaffians)
+        
+        electronLocationsRaw = StatBasics.sampleUniformOnSphere(batchSize, numElectrons, sphereRadius)
+        locationsRef = electronLocationsRaw
+        locationsPar = electronLocationsRaw[:,[1,0,2,3],:]
+        locationsAnt = electronLocationsRaw[:,[0,2,1,3],:]
+        waveRef = waveNetwork(locationsRef)
+        wavePar = waveNetwork(locationsPar)
+        waveAnt = waveNetwork(locationsAnt)
+
+        errorPerElectron = torch.linalg.norm(waveRef + wavePar).item() / (batchSize * numElectrons)
+
+        self.assertAlmostEqual(errorPerElectron, 0.0, 5)
+
+class FlatAndSphereCoordsTest(unittest.TestCase):
+    def testCoordinateTransform(self):
+        batchSize = 1
+        numElectrons = 4
+
+        initSphereCoords = StatBasics.sampleUniformOnSphere(batchSize, numElectrons)
+        computedFlatCoords = SphereManifold.getFlatCoordsFromSphereCoords(initSphereCoords)
+        computedSphereCoords = SphereManifold.getSphereCoordsFromFlatCoords(computedFlatCoords)
+        error0 = torch.linalg.norm(initSphereCoords - computedSphereCoords).item()
+
+        initFlatCoords = torch.rand(batchSize, numElectrons, 2)
+        computedSphereCoords = SphereManifold.getSphereCoordsFromFlatCoords(initFlatCoords)
+        computedFlatCoords = SphereManifold.getFlatCoordsFromSphereCoords(computedSphereCoords)
+        error1 = torch.linalg.norm(initFlatCoords - computedFlatCoords).item()
+
+        self.assertAlmostEqual(error0, 0., 5)
+        self.assertAlmostEqual(error1, 0., 5)
+
+class CurvatureTest(unittest.TestCase):
+    #TODO: This test can fail when one of the sphere coordinates is really close to (0 , 0 , -1). Fix this.
+    def testCurvature(self):
+        ellipsoidA   = 2.
+        ellipsoidB   = 1.
+        ellipsoidC   = 1.
+        batchSize    = 16
+        numElectrons = 4
+
+        def ellipsoidDiffeomorphism(sphereCoords: torch.Tensor):
+            ellipsoidCoords = torch.zeros_like(sphereCoords)
+            ellipsoidCoords[...,0] = ellipsoidA * sphereCoords[...,0]
+            ellipsoidCoords[...,1] = ellipsoidB * sphereCoords[...,1]
+            ellipsoidCoords[...,2] = ellipsoidC * sphereCoords[...,2]
+            return ellipsoidCoords
+
+        def getGaussCurvature(ellipsoidCoords: torch.Tensor):
+            return 1. / (ellipsoidA**2 * ellipsoidB**2 * ellipsoidC**2 * torch.pow(torch.pow(ellipsoidCoords[...,0], 2.) / ellipsoidA**4 + torch.pow(ellipsoidCoords[...,1], 2.) / ellipsoidB**4 + torch.pow(ellipsoidCoords[...,2], 2.) / ellipsoidC**4 , 2.))
+
+        def getMeanCurvature(ellipsoidCoords: torch.Tensor):
+            helper0 = torch.abs(torch.pow(ellipsoidCoords[...,0], 2.) + torch.pow(ellipsoidCoords[...,1], 2.) + torch.pow(ellipsoidCoords[...,2], 2.) - ellipsoidA**2 - ellipsoidB**2 - ellipsoidC**2)
+            helper1 = 2. * ellipsoidA**2 * ellipsoidB**2 * ellipsoidC**2 * torch.pow(torch.pow(ellipsoidCoords[...,0], 2.) / ellipsoidA**4 + torch.pow(ellipsoidCoords[...,1], 2.) / ellipsoidB**4 + torch.pow(ellipsoidCoords[...,2], 2.) / ellipsoidC**4 , 3. / 2.)
+            return helper0 / helper1
+
+        spherePoints = StatBasics.sampleUniformOnSphere(batchSize, numElectrons)
+        ellipsoidPoints = ellipsoidDiffeomorphism(spherePoints)
+
+        KExact = getGaussCurvature(ellipsoidPoints)
+        MExact = getMeanCurvature(ellipsoidPoints)
+
+        KComputed, MComputed = SphereManifold.getCurvaturesFromSphereCoords(spherePoints, ellipsoidDiffeomorphism)
+
+        KDiffPerElectron = torch.linalg.norm(KComputed - KExact).item() / float(batchSize * numElectrons)
+        MDiffPerElectron = torch.linalg.norm(MComputed - MExact).item() / float(batchSize * numElectrons)
+
+        self.assertAlmostEqual(KDiffPerElectron, 0.0, 5)
+        self.assertAlmostEqual(MDiffPerElectron, 0.0, 5)
 
 if __name__ == "__main__":
     print("---Running tests for linear algebra, surface differential operators and sampling---")

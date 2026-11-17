@@ -18,6 +18,10 @@ def sampleUniformOnSphere(batchSize, numElectrons, r = 1.):
     z = r * torch.cos(phi)
     return torch.stack([x, y, z], dim=2)
 
+def samplePreuniformOnManifold(batchSize, numElectrons, sphereDiffeomorphism):
+    sphereSample = sampleUniformOnSphere(batchSize, numElectrons)
+    return sphereDiffeomorphism(sphereSample)
+
 # Generates a proposal for new electron positions by moving into a random direction (uniform) by a random distance (scaled chi distribution)
 def generateMetropolisHastingsProposal(currentElectronPositions, sphereRadius):
     distanceScaling = 0.25
