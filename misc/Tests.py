@@ -175,10 +175,8 @@ class AntisymmetryTest(unittest.TestCase):
         electronLocationsRaw = StatBasics.sampleUniformOnSphere(batchSize, numElectrons, sphereRadius)
         locationsRef = electronLocationsRaw
         locationsPar = electronLocationsRaw[:,[1,0,2,3],:]
-        locationsAnt = electronLocationsRaw[:,[0,2,1,3],:]
         waveRef = waveNetwork(locationsRef)
         wavePar = waveNetwork(locationsPar)
-        waveAnt = waveNetwork(locationsAnt)
 
         errorPerElectron = torch.linalg.norm(waveRef + wavePar).item() / (batchSize * numElectrons)
 

@@ -2,15 +2,18 @@ import torch
 from nn import WaveFunction
 from computation import Physics
 from computation import StatBasics
+from computation import SphereManifold
 from decimal import Decimal
+
+#TODO: Adjust this to include sphere transformations properly.
 
 def main():
     #Attention: Always make sure that these parameters are the same as the ones that were used in training.
     numElectrons       = 4
     numSpinUpElectrons = 2
     numOrbitals        = 6
-    sphereRadius       = 1.0
     particleMass       = 1e+0
+    sphereTransform    = None
 
     embeddingDim     = 256
     numOrbitalParams = 64
@@ -47,12 +50,12 @@ def main():
             raise Exception("\"unnormedEvaluationPoints\"-Tensor is invalid. It must have shape [BATCH SIZE , NUMBER OF ELECTRONS , 3].")
         if unnormedEvaluationPoints.shape[1] != numElectrons:
             raise Exception(f"\"unnormedEvaluationPoints\"-Tensor is invalid. It apparently has {unnormedEvaluationPoints.shape[1]} electrons but \"numElectrons\"-parameter is set to {numElectrons}.")
-    normedEvaluationPoints = sphereRadius * torch.nn.functional.normalize(unnormedEvaluationPoints, p=2., dim=-1)
+    normedEvaluationPoints = torch.nn.functional.normalize(unnormedEvaluationPoints, p=2., dim=-1)
 
-    waveNetwork = WaveFunction.MultiElectronWaveFunction(numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim, numOrbitalParams, numPfaffians)
+    waveNetwork = WaveFunction.MultiElectronWaveFunction(numElectrons, numOrbitals, numSpinUpElectrons, particleMass, embeddingDim, numOrbitalParams, numPfaffians)
     print(f"Created wave function Pfaffians with {sum(p.numel() for p in waveNetwork.parameters())} parameters in total.")
     strMass = '%.2E' % Decimal(particleMass)
-    waveNetwork.load_state_dict(torch.load(f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}.pth"))
+    waveNetwork.load_state_dict(torch.load(f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}_{SphereManifold.transformationName(sphereTransform)}.pth"))
     print("Loaded weights from save file.")
 
     if mode == "eval":
@@ -60,18 +63,18 @@ def main():
         print("Evaluated wave function. Result:")
         print(result)
     if mode == "sample":
-        result = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius, 32)
+        result = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, 32)
         print(f"Sampled {numElectrons} electrons {batchSize} times. Result:")
         print(result)
         waveAtLocations = waveNetwork(result)
         print(f"... with wave function values of:")
         print(waveAtLocations)
         sampleThomsonEnergy = Physics.getAvgLowHighThomsonEnergy(result)
-        sampleLocalEnergy = Physics.getAvgLowHighLocalEnergy(waveNetwork, result, sphereRadius, particleMass)
+        sampleLocalEnergy = Physics.getAvgLowHighLocalEnergy(waveNetwork, result, particleMass)
         print(f"Local energies over batch: Low = {sampleLocalEnergy[1]} ; Avg = {sampleLocalEnergy[0]} ; Median = {sampleLocalEnergy[3]} ; High = {sampleLocalEnergy[2]}")
         print(f"Thomson energies over batch: Low = {sampleThomsonEnergy[1]} ; Avg = {sampleThomsonEnergy[0]} ; Median = {sampleThomsonEnergy[3]} ; High = {sampleThomsonEnergy[2]}")
     if mode == "mode":
-        resultLocation = StatBasics.computeModeOfWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius, 32, 0.1)
+        resultLocation = StatBasics.computeModeOfWaveFunction(waveNetwork, batchSize, numElectrons, 32, 0.1)
         modeThomsonEnergy = Physics.getAvgLowHighThomsonEnergy(resultLocation)
         print(f"Estimated mode of wave function. Thomson energies over batch: Low = {modeThomsonEnergy[1]} ; Avg = {modeThomsonEnergy[0]} ; Median = {modeThomsonEnergy[3]} ; High = {modeThomsonEnergy[2]}")
     if mode == "benchmark":

@@ -4,7 +4,7 @@ from nn import GeometryProvider
 from computation import LinAlgBasics as laBasics
 
 class MultiElectronWaveFunction(torch.nn.Module):
-    def __init__(self, numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim, numOrbitalParams, numPfaffians):
+    def __init__(self, numElectrons, numOrbitals, numSpinUpElectrons, particleMass, embeddingDim, numOrbitalParams, numPfaffians):
         super().__init__()
         self.embeddingDim = embeddingDim
         self.numOrbitalParams = numOrbitalParams
@@ -12,7 +12,6 @@ class MultiElectronWaveFunction(torch.nn.Module):
         self.numElectrons = numElectrons
         self.numOrbitals = numOrbitals
         self.numSpinUpElectrons = numSpinUpElectrons
-        self.sphereRadius = sphereRadius
         self.particleMass = particleMass
 
         self.orbitalParametrizer = GeometryProvider.GeometryProvider(self.numOrbitalParams)

@@ -1,9 +1,16 @@
 import numpy as np
 
-n_batches = 128
-n_points = 4
+n_batches = 1280
+n_points = 2
 
 energies = []
+
+def sphereTransform(inPos):
+    outPos = [0., 0., 0.]
+    outPos[0] = 2. * inPos[0]
+    outPos[1] = inPos[1]
+    outPos[2] = inPos[2]
+    return outPos
 
 for i in range(n_batches):
     point_positions = []
@@ -13,7 +20,7 @@ for i in range(n_batches):
         x = np.sin(phi) * np.cos(theta)
         y = np.sin(phi) * np.sin(theta)
         z = np.cos(phi)
-        point_positions.append((x, y, z))
+        point_positions.append(sphereTransform([x, y, z]))
 
     total_energy = 0.0
     for pointI in range(n_points-1):

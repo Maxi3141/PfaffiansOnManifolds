@@ -1,6 +1,7 @@
 import torch
 from computation import Physics
 from nn import WaveFunction
+from collections.abc import Callable
 
 def clipEnergy(localEnergy: torch.Tensor, cutoffScaling: float = 3.):
     q = 0.2
@@ -11,19 +12,24 @@ def clipEnergy(localEnergy: torch.Tensor, cutoffScaling: float = 3.):
     return torch.clamp(localEnergy, median - cutoffScaling * trueCutoff, median + cutoffScaling * trueCutoff)
 
 #TODO: Invert the system below more elegantly. The matrix to invert can in rare cases become non positive-definite and then everything breaks.
-def getSpringOptimizerGradient(waveFunction:       WaveFunction.MultiElectronWaveFunction, 
-                               electronLocations:  torch.Tensor, 
-                               prevSpringGradient: list[torch.Tensor], 
-                               damping:            float, 
-                               momentum:           float, 
-                               stabilizingConst:   float = 1.0):
-    batchSize = electronLocations.shape[0]
-    currentRawGradientTensors = waveFunction.getLogGradient(electronLocations)
+def getSpringOptimizerGradient(waveFunction:              WaveFunction.MultiElectronWaveFunction, 
+                               electronSphereLocations:   torch.Tensor,
+                               sphereTransform:           Callable[[torch.Tensor], torch.Tensor], 
+                               prevSpringGradient:        list[torch.Tensor], 
+                               damping:                   float, 
+                               momentum:                  float, 
+                               stabilizingConst:          float = 1.0):
+    batchSize = electronSphereLocations.shape[0]
+    electronManifoldLocations = electronSphereLocations
+    if sphereTransform != None:
+        electronManifoldLocations = sphereTransform(electronSphereLocations).to(torch.float32)
+
+    currentRawGradientTensors = waveFunction.getLogGradient(electronManifoldLocations)
     currentRawGradient = torch.cat([torch.flatten(subTensor.unsqueeze(-1), start_dim=1) for subTensor in currentRawGradientTensors], dim=1)
     stabilizingHelper = torch.ones(batchSize, batchSize, dtype=torch.float64) / float(batchSize) 
 
     bigO =  1. / float(batchSize)**0.5 * torch.clamp(currentRawGradient, -1e-3, 1e-3)
-    epsE = -1. / float(batchSize)**0.5 * clipEnergy(Physics.computeLocalEnergy(waveFunction, electronLocations, waveFunction.sphereRadius, waveFunction.particleMass))
+    epsE = -1. / float(batchSize)**0.5 * clipEnergy(Physics.computeLocalEnergy(waveFunction, electronSphereLocations, sphereTransform, waveFunction.particleMass))
 
     bigOBar = bigO - torch.sum(bigO, dim=0) / float(batchSize)
     epsEBar = epsE - torch.sum(epsE, dim=0) / float(batchSize)  

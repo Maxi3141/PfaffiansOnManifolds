@@ -3,13 +3,14 @@ from nn import WaveFunction
 from computation import Physics
 from computation import StatBasics
 from computation import SpringOptimizer
+from computation import SphereManifold
 from decimal import Decimal
 
 def main():
     numElectrons       = 2
     numSpinUpElectrons = 1
     numOrbitals        = 3
-    sphereRadius       = 1.0
+    sphereTransform    = SphereManifold.eggTransform
     particleMass       = 1e+0
 
     batchSize          = 64
@@ -21,7 +22,7 @@ def main():
     computeEnergyInterval  = 10
     computeThomsonInterval = 20
     computeModeInterval    = 100
-    maxTrainingIter        = 1001
+    maxTrainingIter        = 2501
     saveInterval           = 10
     permaSaveInterval      = 500
     useCuda                = True
@@ -40,10 +41,10 @@ def main():
 
     strMass = '%.2E' % Decimal(particleMass)
 
-    waveNetwork = WaveFunction.MultiElectronWaveFunction(numElectrons, numOrbitals, numSpinUpElectrons, sphereRadius, particleMass, embeddingDim, numOrbitalParams, numPfaffians)
+    waveNetwork = WaveFunction.MultiElectronWaveFunction(numElectrons, numOrbitals, numSpinUpElectrons, particleMass, embeddingDim, numOrbitalParams, numPfaffians)
     print(f"Created wave function Pfaffians with {sum(p.numel() for p in waveNetwork.parameters())} parameters in total.")
     if resumeTraining:
-        waveNetwork.load_state_dict(torch.load(f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}.pth"))
+        waveNetwork.load_state_dict(torch.load(f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}_{SphereManifold.transformationName(sphereTransform)}.pth"))
 
     localEnergyHistory   = []
     thomsonEnergyHistory = []
@@ -57,10 +58,10 @@ def main():
     for iter in range(iterStart, maxTrainingIter):
         print(f"iteration {iter}...")
 
-        electronLocations = StatBasics.sampleFromWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
+        electronSphereLocations = StatBasics.sampleFromWaveFunctionOnReferenceSphere(waveNetwork, batchSize, numElectrons, sphereTransform)
 
         learningRate = 0.08 * (1.0 + float(iter) * 1e-4)**-1
-        springGradient, springSuccess = SpringOptimizer.getSpringOptimizerGradient(waveNetwork, electronLocations, prevGradient, optimizerDamping, optimizerMomentum)
+        springGradient, springSuccess = SpringOptimizer.getSpringOptimizerGradient(waveNetwork, electronSphereLocations, sphereTransform, prevGradient, optimizerDamping, optimizerMomentum)
         if not springSuccess:
             numSkippedTrainingIters += 1
             print(f" Optimizer step computation failed. {numSkippedTrainingIters} iterations were now skipped in total.")
@@ -72,26 +73,26 @@ def main():
         print(f"   -> Updated weights using Spring gradient.")
 
         if iter % saveInterval == 0:
-            torch.save(waveNetwork.state_dict(), f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}.pth")
+            torch.save(waveNetwork.state_dict(), f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}_{SphereManifold.transformationName(sphereTransform)}.pth")
             print(f"   -> Saved weights.")
 
         if iter % permaSaveInterval == 0 and iter != 0:
-            torch.save(waveNetwork.state_dict(), f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}_{iter}.pth")
+            torch.save(waveNetwork.state_dict(), f"./saves/ManifoldPfaffian_{numElectrons}E_{numOrbitals}O_{numSpinUpElectrons}Up_M{strMass}_{SphereManifold.transformationName(sphereTransform)}_{iter}.pth")
             print(f"   -> Saved weights for current iteration.")
 
         if iter % computeEnergyInterval == 0:
-            localEnergyData = Physics.getAvgLowHighLocalEnergy(waveNetwork, electronLocations, sphereRadius, particleMass)
+            localEnergyData = Physics.getAvgLowHighLocalEnergy(waveNetwork, electronSphereLocations, sphereTransform, particleMass)
             localEnergyHistory.append(localEnergyData)
             print(f"   -> Local energy in batch of {batchSize}: Low = {localEnergyData[1]} ; Avg = {localEnergyData[0]} ; High = {localEnergyData[2]} ; Median = {localEnergyData[3]}")
 
         if iter % computeThomsonInterval == 0:
-            thomsonEnergyData = Physics.getAvgLowHighThomsonEnergy(electronLocations)
+            thomsonEnergyData = Physics.getAvgLowHighThomsonEnergy(electronSphereLocations, sphereTransform)
             thomsonEnergyHistory.append(thomsonEnergyData)
             print(f"   -> Thomson energy in batch of {batchSize}: Low = {thomsonEnergyData[1]} ; Avg = {thomsonEnergyData[0]} ; High = {thomsonEnergyData[2]} ; Median = {thomsonEnergyData[3]}")
 
         if iter % computeModeInterval == 0:
-            modePositions = StatBasics.computeModeOfWaveFunction(waveNetwork, batchSize, numElectrons, sphereRadius)
-            modeThomsonEnergy = Physics.getAvgLowHighThomsonEnergy(modePositions)
+            modePositions = StatBasics.computeModeOfWaveFunctionOnSphere(waveNetwork, batchSize, numElectrons, sphereTransform)
+            modeThomsonEnergy = Physics.getAvgLowHighThomsonEnergy(modePositions, sphereTransform)
             modeHistory.append(modeThomsonEnergy)
             print(f"   -> Thomson energy of modes: Low = {modeThomsonEnergy[1]} ; Avg = {modeThomsonEnergy[0]} ; High = {modeThomsonEnergy[2]} ; Median = {modeThomsonEnergy[3]}")
 
